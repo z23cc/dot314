@@ -681,12 +681,12 @@ async function fetchCodexUsage(modelRegistry: any): Promise<UsageSnapshot> {
 			});
 		}
 
-		// Secondary window (usually daily)
+		// Secondary window (usually weekly)
 		if (data.rate_limit?.secondary_window) {
 			const sw = data.rate_limit.secondary_window;
 			const resetDate = sw.reset_at ? new Date(sw.reset_at * 1000) : undefined;
 			const windowHours = Math.round((sw.limit_window_seconds || 86400) / 3600);
-			const label = windowHours >= 24 ? "Day" : `${windowHours}h`;
+			const label = windowHours >= 24 ? "Week" : `${windowHours}h`;
 			windows.push({
 				label,
 				usedPercent: sw.used_percent || 0,
@@ -1038,7 +1038,7 @@ class UsageComponent {
 						const empty = barW - filled;
 						const color = remaining <= 10 ? "error" : remaining <= 30 ? "warning" : "success";
 						const bar = t.fg(color, "█".repeat(filled)) + dim("░".repeat(empty));
-						const reset = w.resetDescription ? dim(` ⏱${w.resetDescription}`) : "";
+						const reset = w.resetDescription ? dim(`  ⏱ ${w.resetDescription}`) : "";
 						lines.push(box(`  ${w.label.padEnd(7)} ${bar} ${remaining.toFixed(0).padStart(3)}%${reset}`));
 					}
 				}
