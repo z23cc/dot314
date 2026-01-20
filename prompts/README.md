@@ -2,6 +2,10 @@
 
 ## For [RepoPrompt](https://repoprompt.com/docs) CLI (rp-cli)
 
+- ● [`rp-bind-cli.md`](rp-bind-cli.md)
+  - Discovers available windows/tabs and binds `rp_exec` to a specific RepoPrompt window and compose tab
+  - Uses `question` tool for interactive selection
+
 - ◐ [`rp-build-cli.md`](rp-build-cli.md) (source: RepoPrompt app)
   - Runs `builder` to select files and draft a plan, `chat` to refine it, then implement with `edit`/`file`
   - Modified: prefers `rp_exec` in Pi

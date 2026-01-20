@@ -11,7 +11,7 @@ description: Update RepoPrompt tool guidance based empirically on the latest MCP
 
 2. The MCP files live in `agent/skills/repoprompt-tool-guidance-refresh/rp-prompts/mcp/`:
    - `AGENTS-mcp-preface.md`
-   - `followup-from-review.md`
+   - `rp-address-review.md`
    - `rp-review.md`
 
 3. Run `rp-cli -l` to get the full list of MCP tools and their definitions. Review them and then examine `AGENTS-mcp-preface.md` for any outdated definitions or missing key tools. If there are any, make surgical updates to bring it into alignment with the latest state of the RepoPrompt MCP server.
@@ -25,6 +25,7 @@ description: Update RepoPrompt tool guidance based empirically on the latest MCP
 2. The CLI-related files live outside this skill folder in their functional locations:
    - `agent/AGENTS-rp-cli-prefix.md`
    - `agent/prompts/rp-address-review-cli.md`
+   - `agent/prompts/rp-bind-cli.md`
    - `agent/prompts/rp-review-cli.md`
    - `agent/extensions/repoprompt.ts`
 
@@ -32,6 +33,7 @@ description: Update RepoPrompt tool guidance based empirically on the latest MCP
 
 4. Do the same for the other CLI-related files:
    - `rp-address-review-cli.md`
+   - `rp-bind-cli.md`
    - `rp-review-cli.md`
 
 5. Confirm whether `repoprompt.ts` encodes any assumptions about the CLI that are now invalidated by the latest state of `rp-cli`. If so, make surgical patches to that file (only patches directly entailed by what the `rp-cli` change broke).

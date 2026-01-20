@@ -46,28 +46,28 @@
   <img width="270" alt="notify menu" src="https://github.com/user-attachments/assets/474af589-ee3e-423d-a800-4331f2517676" />
 </p>
 
-- ◐ [`plan-mode.ts`](plan-mode.ts)
+- ◐ [`plan-mode.ts`](plan-mode.ts) (upstream: [pi-mono examples](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent/examples/extensions))
   - `/plan` (and `ctrl+alt+p`) toggles a read-only sandbox
   - No todo extraction or step execution prompting (planning stays on the user)
   - Restricts tools, blocks destructive shell commands, and blocks RepoPrompt write operations (including via `rp_exec` or `rp-cli -e ...`)
 
-- ◐ [`raw-paste.ts`](raw-paste.ts)
+- ◐ [`raw-paste.ts`](raw-paste.ts) (upstream: [tmustier/pi-extensions](https://github.com/tmustier/pi-extensions))
   - `/paste` arms raw paste for the next paste operation
   - This version adds `alt+v` performing both arm + paste directly from the clipboard, preserving newlines (bracketed paste handling)
 
-- ◐ [`oracle.ts`](oracle.ts)
+- ◐ [`oracle.ts`](oracle.ts) (upstream: [hjanuschka/shitty-extensions](https://github.com/hjanuschka/shitty-extensions/tree/main))
   - `/oracle` queries an alternate model for a second opinion, with optional file inclusion (`-f`) and injection into the current conversation
   - This version adds a thinking-level picker
 
-- ◐ [`skill-palette/`](skill-palette/)
+- ◐ [`skill-palette/`](skill-palette/) (upstream: [pi-skill-palette](https://github.com/nicobailon/pi-skill-palette))
   - Skill command palette (`/skill`)
   - This version's scanning order matches Pi/Codex/Claude conventions and avoids symlink cycles when scanning skill dirs
 
-- ◐ [`tools.ts`](tools.ts) + [`tools-config.json`](tools-config.json)
+- ◐ [`tools.ts`](tools.ts) + [`tools-config.json`](tools-config.json) (upstream: )
   - `/tools` interactive enable/disable UI
   - This version persists tool enablement globally (`~/.pi/agent/extensions/tools-config.json`) and per-session via session entries
 
-- ◐ [`usage-bar.ts`](usage-bar.ts)
+- ◐ [`usage-bar.ts`](usage-bar.ts) (upstream: )
   - `/usage` usage overlay for multiple providers, with provider status polling and reset countdowns
   - This version adds `alt+u` shortcut
 
@@ -89,10 +89,14 @@ Upstream: [pi-mono examples](https://github.com/badlogic/pi-mono/tree/main/packa
 - ○ `mac-system-theme.ts`
 - ○ `preset.ts`
 - ○ `protected-paths.ts`
+- ○ `question.ts`
 - ○ `review.ts`
 - ○ `todo.ts`
 - ○ `status-line.ts`
 
 Other:
+- ○ [`code-actions/`](code-actions/) (upstream: [tmustier/pi-extensions](https://github.com/tmustier/pi-extensions))
+  - `/code` to pick code blocks or inline code from recent assistant messages, then copy or insert
+  - Type to search; enter to copy, right arrow to insert in the command line
 - ○ `speedreading.ts` (upstream: [hjanuschka/shitty-extensions](https://github.com/hjanuschka/shitty-extensions/tree/main))
 - ◐ `ultrathink.ts` (upstream: [hjanuschka/shitty-extensions](https://github.com/hjanuschka/shitty-extensions/tree/main))

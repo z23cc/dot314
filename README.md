@@ -36,17 +36,18 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ● `commands.ts`
 - ○ `confirm-destructive.ts`
 - ● `ephemeral-mode.ts`
+- ◐ `guardrails/`
 - ○ `interactive-shell.ts`
 - ○ `mac-system-theme.ts`
 - ● `md.ts`
 - ● `model-sysprompt-appendix.ts`
 - ● `notify.ts`
 - ◐ `oracle.ts`
-- ○ `permission-gate.ts`
 - ○ `pi-prompt-template-model/`
 - ◐ `plan-mode.ts`
 - ○ `preset.ts`
 - ○ `protected-paths.ts`
+- ○ `question.ts`
 - ◐ `raw-paste.ts`
 - ● `repoprompt.ts`
 - ○ `review.ts`
@@ -64,21 +65,23 @@ See [extensions/README.md](extensions/README.md) for descriptions
 See [skills/README.md](skills/README.md)
 
 - ● `repoprompt-tool-guidance-refresh/`
+- ● `session-log-analysis/`
 - ◐ `dev-browser/`
 - ◐ `xcodebuildmcp/`
-- ○ `gdcli/`
 - ○ `brave-search/`
+- ○ `gdcli/`
 
 ## Prompts
 
 See [prompts/README.md](prompts/README.md)
 
+- ● `rp-bind-cli.md`
 - ● `rp-review-cli.md`
 - ● `rp-address-review-cli.md`
 - ◐ `rp-build-cli.md`
 - ◐ `rp-investigate-cli.md`
-- ◐ `rp-reminder-cli.md`
 - ◐ `rp-oracle-export-cli.md`
+- ◐ `rp-reminder-cli.md`
 - ○ `handoff.md`
 - ○ `pickup.md`
 
