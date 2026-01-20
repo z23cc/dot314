@@ -74,6 +74,8 @@
 ## Vendored extensions (have their own READMEs)
 
 - ○ [`async-subagents/`](async-subagents/) (upstream: [nicobailon/pi-async-subagents](https://github.com/nicobailon/pi-async-subagents))
+- ◐ [`guardrails/`](guardrails/) — security hooks: `prevent-brew`, `protect-paths`, `permission-gate` (upstream: [aliou/pi-extensions](https://github.com/aliou/pi-extensions))
+  - `protect-paths` merges upstream's `protect-env-files` + `protected-paths` with broader coverage (all tools, bash command parsing, context-aware errors)
 - ○ [`pi-prompt-template-model/`](pi-prompt-template-model/) (upstream: [nicobailon/pi-prompt-template-model](https://github.com/nicobailon/pi-prompt-template-model))
 - ○ [`rewind/`](rewind/) (upstream: [nicobailon/pi-rewind-hook](https://github.com/nicobailon/pi-rewind-hook))
 
@@ -85,7 +87,6 @@ Upstream: [pi-mono examples](https://github.com/badlogic/pi-mono/tree/main/packa
 - ○ `confirm-destructive.ts`
 - ○ `interactive-shell.ts`
 - ○ `mac-system-theme.ts`
-- ○ `permission-gate.ts`
 - ○ `preset.ts`
 - ○ `protected-paths.ts`
 - ○ `review.ts`
