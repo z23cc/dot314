@@ -53,6 +53,7 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ● `repoprompt-mcp/`
 - ○ `review.ts`
 - ○ `rewind/`
+- ● `rp-native-tools-lock.ts`
 - ○ `send-user-message.ts`
 - ◐ `skill-palette/`
 - ○ `speedreading.ts`

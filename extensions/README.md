@@ -18,7 +18,21 @@
   - Used by [Pi × RP-CLI AGENTS.md guidance](../AGENTS-rp-cli-prefix.md), [RP-CLI prompts](../prompts/README.md#for-repoprompt-cli-rp-cli), and this [skill](../skills/repoprompt-tool-guidance-refresh/) for keeping it all up-to-date with new RepoPrompt versions
 
 <p align="center">
-  <img width="450" alt="repoprompt syntax highlighting example" src="https://github.com/user-attachments/assets/a416af2c-6f8e-4141-8040-abb8492eda7b" />
+  <img width="333" alt="repoprompt syntax highlighting example" src="https://github.com/user-attachments/assets/a416af2c-6f8e-4141-8040-abb8492eda7b" />
+</p>
+
+- ● [`rp-native-tools-lock.ts`](rp-native-tools-lock.ts)
+  - Disables Pi native repo-file tools (`read`, `write`, `edit`, `ls`, `find`, `grep`) when RepoPrompt tools are available
+  - Mode switch: `/rp-tools-lock off|auto|rp-mcp|rp-cli`
+    - `off`: no enforcement
+    - `auto`: prefer `rp` (RepoPrompt MCP) if available; else `rp_exec` (RepoPrompt CLI); else behaves like `off`
+    - `rp-mcp`: enforce only when `rp` is available (does not fall back to `rp_exec`)
+    - `rp-cli`: enforce only when `rp_exec` is available (does not fall back to `rp`)
+  - Footer status indicator while enforced: `RP 🔒 mcp` or `RP 🔒 cli`
+  - Intended to complement the `/tools` extension without mutating `tools-config.json`
+
+<p align="center">
+  <img width="225" alt="rp native tools lock" src="https://github.com/user-attachments/assets/881cb6f1-1258-4bd6-b8f3-532381ac1ab1" />
 </p>
 
 - ● [`md.ts`](md.ts)
@@ -30,7 +44,7 @@
   - Shortcuts: `ctrl+/` and `F1`
 
 <p align="center">
-  <img width="450" alt="commands overlay" src="https://github.com/user-attachments/assets/b32ba300-62ce-47b2-89b6-25c7cfa2bcbc" />
+  <img width="333" alt="commands overlay" src="https://github.com/user-attachments/assets/b32ba300-62ce-47b2-89b6-25c7cfa2bcbc" />
 </p>
 
 - ● [`ephemeral-mode.ts`](ephemeral-mode.ts)
