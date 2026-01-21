@@ -50,11 +50,18 @@ If RepoPrompt renames/removes these tools or changes their required parameters/o
 1. Copy this extension into Pi’s extensions directory:
    - `~/.pi/agent/extensions/repoprompt-mcp/`
 
-2. Install dependencies and build:
+2. Install dependencies:
 
    ```bash
    cd ~/.pi/agent/extensions/repoprompt-mcp
    npm install
+   ```
+
+   This extension is loaded from `./src/index.ts` via Pi's TypeScript loader, so a build step is not required for normal usage.
+
+   Optional (useful for running tests or publishing):
+
+   ```bash
    npm run build
    ```
 

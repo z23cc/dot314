@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { checkGuards, isDeleteOperation } from "../guards.js";
+import { checkGuards, isDeleteOperation } from "../dist/guards.js";
 
 
 test("isDeleteOperation detects file_actions delete", () => {

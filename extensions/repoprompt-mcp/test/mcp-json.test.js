@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { extractJsonContent } from "../mcp-json.js";
+import { extractJsonContent } from "../dist/mcp-json.js";
 
 function textContent(text) {
   return [{ type: "text", text }];

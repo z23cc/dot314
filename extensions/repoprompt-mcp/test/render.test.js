@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseFencedBlocks } from "../render.js";
+import { parseFencedBlocks } from "../dist/render.js";
 
 
 test("parseFencedBlocks returns correct indices for multiple blocks", () => {

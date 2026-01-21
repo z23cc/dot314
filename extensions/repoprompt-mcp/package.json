@@ -1,12 +1,13 @@
 {
   "name": "repoprompt-mcp",
   "version": "1.0.0",
-  "description": "First-class RepoPrompt integration for Pi via MCP",
+  "description": "RepoPrompt MCP integration for Pi",
   "type": "module",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json --watch",
     "test": "npm run build && node --test"
   },
   "dependencies": {
@@ -22,5 +23,14 @@
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
     "@mariozechner/pi-tui": "*"
-  }
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  },
+  "files": [
+    "dist/**",
+    "src/**",
+    "README.md",
+    "package.json"
+  ]
 }

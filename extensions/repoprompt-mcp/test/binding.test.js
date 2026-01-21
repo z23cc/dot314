@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { findMatchingWindow, parseRootList, parseWindowList } from "../binding.js";
+import { findMatchingWindow, parseRootList, parseWindowList } from "../dist/binding.js";
 
 const HOME = os.homedir();
 

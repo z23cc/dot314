@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeToolName, resolveToolName } from "../tool-names.js";
+import { normalizeToolName, resolveToolName } from "../dist/tool-names.js";
 
 test("normalizeToolName strips common prefixes", () => {
   assert.equal(normalizeToolName("RepoPrompt_list_windows"), "list_windows");
