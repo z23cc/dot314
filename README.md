@@ -2,8 +2,9 @@
 
 - [extensions/](extensions/) ([README](extensions/README.md))
 - [skills/](skills/) ([README](skills/README.md))
-- [prompts/](prompts/) ([README](prompts/README.md))
 - [themes/](themes/)
+- [AGENTS-prefaces/](AGENTS-prefaces/)
+- [prompts/](prompts/) ([README](prompts/README.md))
 
 The Pi resources I'm currently enjoying - some adapted from the community, some original.  There is an emphasis here on making Pi and RepoPrompt co-operate well.
 
