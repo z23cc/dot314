@@ -15,25 +15,12 @@ const CLIENT_INFO = {
   version: "1.0.0",
 };
 
-const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+const DEFAULT_LIST_TOOLS_TIMEOUT_MS = 10_000;
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
+// Keep parity with the rp-cli integration default (15 minutes). Some RepoPrompt tools
+// (notably context_builder and chat_send) can legitimately take longer than 10s
+const DEFAULT_TOOL_CALL_TIMEOUT_MS = 15 * 60 * 1000;
 
-    promise
-      .then((value) => {
-        clearTimeout(timer);
-        resolve(value);
-      })
-      .catch((err) => {
-        clearTimeout(timer);
-        reject(err);
-      });
-  });
-}
 
 /**
  * Manages the MCP connection to RepoPrompt server
@@ -123,12 +110,12 @@ export class RpClient {
   /**
    * Refresh the list of available tools
    */
-  async refreshTools(timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS): Promise<RpToolMeta[]> {
+  async refreshTools(timeoutMs = DEFAULT_LIST_TOOLS_TIMEOUT_MS): Promise<RpToolMeta[]> {
     if (!this.client) {
       throw new Error("Not connected");
     }
 
-    const result = await withTimeout(this.client.listTools(), timeoutMs, "RepoPrompt listTools");
+    const result = await this.client.listTools(undefined, { timeout: timeoutMs });
 
     this._tools = (result.tools ?? []).map((tool) => ({
       name: tool.name,
@@ -145,7 +132,7 @@ export class RpClient {
   async callTool(
     name: string,
     args?: Record<string, unknown>,
-    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS
+    timeoutMs = DEFAULT_TOOL_CALL_TIMEOUT_MS
   ): Promise<McpToolResult> {
     if (!this.client) {
       throw new Error("Not connected to RepoPrompt MCP server");
@@ -153,19 +140,20 @@ export class RpClient {
 
     let result;
     try {
-      result = await withTimeout(
-        this.client.callTool({
+      result = await this.client.callTool(
+        {
           name,
           arguments: args ?? {},
-        }),
-        timeoutMs,
-        `RepoPrompt callTool(${name})`
+        },
+        undefined,
+        { timeout: timeoutMs }
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this._status = "error";
+
+      // Do NOT tear down the whole MCP connection on tool-call failures. Tool errors
+      // (including timeouts) are common and should not force users to /rp reconnect
       this._error = message;
-      await this.close();
       throw new Error(message);
     }
 
