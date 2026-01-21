@@ -9,11 +9,12 @@
     - [`changelog-latest.md`](repoprompt-tool-guidance-refresh/changelog-latest.md)
     - [`rp-prompts/mcp/`](repoprompt-tool-guidance-refresh/rp-prompts/mcp/) — MCP-specific prompts maintained by this skill
 
-- ● [`session-log-analysis/`](session-log-analysis/)
-  - Search and analyze pi agent session logs using qmd (local semantic search)
+- ◐ [`qmd/`](qmd/)
+  - Local search/indexing CLI usage (BM25 + vectors + hybrid)
+  - Includes helper script(s) for intelligence-gathering alongside qmd searches (e.g. session log time-window reports)
   - Contents:
-    - [`SKILL.md`](session-log-analysis/SKILL.md) — qmd usage for BM25/vector/hybrid search
-    - [`analyze-sessions.sh`](session-log-analysis/analyze-sessions.sh) — time-based aggregation and reports
+    - [`SKILL.md`](qmd/SKILL.md)
+    - [`analyze-sessions.sh`](qmd/analyze-sessions.sh) — time-window filtering + aggregation/reporting for session logs
 
 - ◐ [`dev-browser/`](dev-browser/) (upstream: [SawyerHood/dev-browser](https://github.com/SawyerHood/dev-browser))
   - Persistent browser automation via the Dev Browser Chrome extension (Playwright-backed)
