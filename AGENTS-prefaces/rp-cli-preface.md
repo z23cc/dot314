@@ -1,8 +1,8 @@
-# Tool Guidance
+# Tool Protocol
 
-This section overrides generic tool guidance for **repo exploration, context building, and file editing** inside pi.
+The following instructions **override** generic tool guidance for **repo exploration, context building, and file editing** inside Pi.
 
-RepoPrompt (via `rp_exec`) is the default for repo-scoped work because it materially improves context quality and reduces routing mistakes. However, pi's native `edit` is often the best tool for exact-block code replacement.
+RepoPrompt (via `rp_exec`) is the default for repo-scoped work because it materially improves context quality and reduces routing mistakes.
 
 Every backticked command in this doc is an `rp_exec.cmd` string (what goes after `rp-cli -e`) unless explicitly labeled as a pi native tool.
 
@@ -54,9 +54,7 @@ Routing failures are the #1 cause of "0 matches", "wrong files", or "empty resul
 
 Do not use bash for: `ls`, `find`, `grep`, `cat`, `wc`, `tree`, or similar file exploration.
 
-Do not use pi's native `grep`, `find`, `ls`, `write` for repo work.
-
-Do not use pi's native `read` for anything except `*/SKILL.md` files (and one edge case noted below). Skill files live in `~/.pi/agent/skills/` or `~/.codex/skills/`, outside any project workspace. RepoPrompt could reach them if you added that folder as a root, but the ceremony isn't worth it for reading a small file. This is an architectural boundary, not an arbitrary exception.
+Do not use pi's native `read`, `grep`, `find`, `ls`, `write`, or `edit` for repo work.
 
 Never switch workspaces in an existing window unless the user explicitly says it's safe. Switching clobbers selection, prompt, and context. Prefer `workspace switch <name> --new-window`.
 
@@ -93,9 +91,9 @@ Each rp_exec call is a fresh connection. Use `&&` to chain deterministic sequenc
 | API signatures | rp_exec `structure` | token-efficient, no native equivalent |
 | Context curation | rp_exec `select`, `context` | selection is the chat/review input |
 | Reading repo files | rp_exec `read` | workspace-scoped, supports tail reads |
-| Reading skill files | pi native `read` | skills live outside RP workspace roots |
-| Edit: exact block replacement | pi native `edit` | exact-match, loud failure, best for multiline/punctuation |
-| Edit: replace-all, multi-edit, diff preview, rewrite | rp_exec `call apply_edits {...}` | capabilities native edit doesn't have |
+| Code editing (default) | rp_exec `edit` | workspace-aware |
+| Code editing (advanced) | rp_exec `call apply_edits {...}` | multi-edit, diff preview, full rewrite |
+| Code editing (fallback) | pi native `edit` | use if rp_exec edit fails |
 | File create/move/delete | rp_exec `file create/move/delete` | workspace-aware |
 
 ---
@@ -103,39 +101,35 @@ Each rp_exec call is a fresh connection. Use `&&` to chain deterministic sequenc
 ## Reading
 
 ### Default: rp_exec read
-
 - `read <path> [start] [limit]` — prefer 120–200 line chunks
 - Tail read via negative start: `read path/to/file -20` (last 20 lines)
 
 ### Edge case: embedded triple-backtick fences
-
 RepoPrompt's pretty output uses markdown fences. If the file contains ``` lines, the formatting can collide. This is rare in practice.
 
 Options:
-- Use pi's native `read` for that file
 - Use `rp_exec` with `rawJson=true` and JSON form: `call read_file {"path":"...","start_line":1,"limit":160}`
 
 ---
 
 ## Editing
 
-Two separate concerns:
-1. **Matching semantics** — exact block vs substring replace
-2. **Quoting/parsing** — shorthand CLI vs JSON
+### rp_exec `edit` (default)
 
-### Pi's native `edit` (preferred for exact block replacement)
+Use for most code edits:
 
-Use when you know the exact old block and want loud failure if it's not present.
+```
+edit <path> <search> <replace> [--all]
+```
 
-- Exact-match replacement (oldText must match exactly)
-- Best for multiline code blocks, punctuation-heavy content, template literals
+- Exact-match replacement by default
+- Use `--all` for replace-all (only use when you truly mean "every occurrence")
 
-This is the common case for surgical edits.
+- Workspace-aware and consistent with the rest of your rp_exec workflow
 
-### rp_exec JSON form (preferred for advanced features)
+### rp_exec JSON form (advanced features)
 
 Use when you need:
-- Replace-all (`all:true`)
 - Multiple edits in one call (`edits:[...]`)
 - Diff preview (`verbose:true`)
 - Full file rewrite (`rewrite:"..."`)
@@ -144,9 +138,9 @@ Use when you need:
 call apply_edits {"path":"...","search":"...","replace":"...","all":true,"verbose":true}
 ```
 
-### rp_exec shorthand (`edit file "a" "b"`)
+### Pi's native `edit` (fallback)
 
-Avoid except for very simple ASCII replacements. The two-layer parsing (tool call string → rp-cli command parsing) makes quoting painful quickly.
+Use if rp_exec edit fails or for edge cases. Same exact-match semantics but outside the RepoPrompt workflow.
 
 ### File creation
 
@@ -161,12 +155,14 @@ By default, `rp_exec` errors loudly when an edit makes no changes (parity with p
 ## Routing and Multi-window Notes
 
 If results look wrong:
+
 1. Assume routing first (wrong window/tab)
 2. `tree` (no args) to confirm workspace roots
 3. `workspace tabs` then bind to the correct tab
 4. Don't "fix" confusion by switching workspaces in-place
 
 RepoPrompt only operates within workspace root folders. If the repo isn't in any workspace:
+
 ```
 workspace create Temp --folder-path /abs/path --new-window
 ```
@@ -189,18 +185,39 @@ read /tmp/rp_search.txt 1 160
 
 ---
 
-## Fallback Rules (Exploration and Read)
-
-These rules apply to exploration and read operations. For editing, see the table and Editing section above.
+## Fallback Rules
 
 Fall back to pi's native tools only if:
-
 1. rp-cli is not installed or not on PATH
 2. A specific rp_exec command fails after one retry
-3. You're reading a `*/SKILL.md` file
-4. The file contains ``` fences and you don't want to use rawJson
 
 Unexpected output is usually a routing issue—wrong workspace, wrong window, wrong tab—not a tool failure. Check binding and workspace roots before falling back.
+
+---
+
+## Useful Flows (Hotwords)
+
+### [DISCOVER] (default when context is unclear)
+1) Map the repo: `tree`
+2) Find likely entrypoints: `search "Auth" src/`
+3) Read key files (small chunks): `read path/to/file.py 1 160`
+4) Select focused context: `select set src/auth/ && context`
+5) Expand via structure: `structure src/auth/`
+
+### [AGENT] (autonomous implementation loop)
+1) Ensure tight selection: `select set … && context`
+2) Make minimal edits: `edit path/to/file.py "old" "new" --all` (use `--all` only when intended)
+3) Create/move files only when necessary: `file create/delete/move` (use `call file_actions ...` only when you need to set file content)
+4) Re-check selection + context after edits: `context`
+
+### [PAIR] (collaborative planning / second opinion)
+1) Curate context first: `select set … && context --all` (full context justified for planning here)
+2) Ask for a plan: `plan "Propose a safe plan for …"`
+3) Apply changes iteratively with `edit` and (when needed) `call <tool_name> {json_args}`
+
+### [SECOND OPINION] (complex / risky changes)
+Use RepoPrompt chat as a reviewer (not an executor):
+`plan "Review my approach for … and call out risks"`
 
 ---
 
@@ -213,6 +230,8 @@ Prefer high-level commands. Use `call <tool> {json}` only when you need exact pa
 - `call <tool_name> {json_args}` — raw invocation
 
 Common uses:
-- `call apply_edits {...}` — complex edits (JSON avoids quoting pitfalls)
+- `call apply_edits {...}` — complex edits (multi-edit, diff preview, rewrite)
 - `call file_actions {...}` — creating files with complex content
 - `call read_file {...}` — when you need rawJson output
+
+---

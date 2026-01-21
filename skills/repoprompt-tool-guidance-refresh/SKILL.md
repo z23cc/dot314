@@ -12,7 +12,7 @@ description: Update RepoPrompt tool guidance based empirically on the latest MCP
 2. The MCP files live in `agent/skills/repoprompt-tool-guidance-refresh/rp-prompts/mcp/`:
    - `AGENTS-mcp-preface.md`
    - `rp-address-review.md`
-   - `rp-review.md`
+   - `rp-review-chat.md`
 
 3. Run `rp-cli -l` to get the full list of MCP tools and their definitions. Review them and then examine `AGENTS-mcp-preface.md` for any outdated definitions or missing key tools. If there are any, make surgical updates to bring it into alignment with the latest state of the RepoPrompt MCP server.
 
@@ -26,7 +26,7 @@ description: Update RepoPrompt tool guidance based empirically on the latest MCP
    - `agent/AGENTS-rp-cli-prefix.md`
    - `agent/prompts/rp-address-review-cli.md`
    - `agent/prompts/rp-bind-cli.md`
-   - `agent/prompts/rp-review-cli.md`
+   - `agent/prompts/rp-review-chat-cli.md`
    - `agent/extensions/repoprompt-cli.ts`
 
 3. Retain `rp-cli -l` in context (re-run if no longer available). Run `rp-cli --help` to understand how the CLI relates to the tool definitions provided by `rp-cli -l`. Review them and then examine `AGENTS-rp-cli-prefix.md` for outdated definitions or missing key tools. If there are any, make surgical updates to bring it into alignment with the latest state of the RepoPrompt CLI.

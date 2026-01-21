@@ -50,3 +50,9 @@ venv/
 *.temp
 .tmp/
 tmp/
+
+# RepoPrompt Prompts that are managed by the RP app
+prompts/rp-build.md
+prompts/rp-investigate.md
+prompts/rp-oracle-export.md
+prompts/rp-reminder.md
