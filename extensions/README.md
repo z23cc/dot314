@@ -91,8 +91,9 @@ Upstream: [pi-mono examples](https://github.com/badlogic/pi-mono/tree/main/packa
 - ○ `protected-paths.ts`
 - ○ `question.ts`
 - ○ `review.ts`
-- ○ `todo.ts`
+- ○ `send-user-message.ts`
 - ○ `status-line.ts`
+- ○ `todo.ts`
 
 Other:
 - ○ [`code-actions/`](code-actions/) (upstream: [tmustier/pi-extensions](https://github.com/tmustier/pi-extensions))

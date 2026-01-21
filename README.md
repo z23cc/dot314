@@ -52,6 +52,7 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ● `repoprompt.ts`
 - ○ `review.ts`
 - ○ `rewind/`
+- ○ `send-user-message.ts`
 - ◐ `skill-palette/`
 - ○ `speedreading.ts`
 - ○ `status-line.ts`
