@@ -12,12 +12,15 @@
     - [`rp-tool-defs/`](repoprompt-tool-guidance-refresh/rp-tool-defs/) — captured snapshots and diffs
     - [`rp-cli-prompts/`](repoprompt-tool-guidance-refresh/rp-cli-prompts/) — CLI-specific prompts maintained by this skill
 
-- ◐ [`qmd/`](qmd/)
-  - Local search/indexing CLI usage (BM25 + vectors + hybrid)
-  - Includes helper script(s) for intelligence-gathering alongside qmd searches (e.g. session log time-window reports)
+- ◐ [`text-search/`](text-search/)
+  - Search indexed text corpora (sessions, docs, logs) using qmd. Use instead of grep.
   - Contents:
-    - [`SKILL.md`](qmd/SKILL.md)
-    - [`analyze-sessions.sh`](qmd/analyze-sessions.sh) — time-window filtering + aggregation/reporting for session logs
+    - [`SKILL.md`](text-search/SKILL.md)
+    - [`scripts/session-view`](text-search/scripts/session-view) — dispatcher for diagnostic session views (auto-detects format)
+    - [`scripts/analyze-sessions.sh`](text-search/scripts/analyze-sessions.sh) — time-window filtering + aggregation/reporting
+    - [`scripts/pi-session-extract-with-tools.py`](text-search/scripts/pi-session-extract-with-tools.py) — extract Pi sessions with tool calls
+    - [`scripts/codex-session-extract-with-tools.py`](text-search/scripts/codex-session-extract-with-tools.py) — extract Codex sessions with tool calls
+    - [`scripts/claude-session-extract-with-tools.py`](text-search/scripts/claude-session-extract-with-tools.py) — extract Claude Code sessions with tool calls
 
 - ◐ [`dev-browser/`](dev-browser/) (upstream: [SawyerHood/dev-browser](https://github.com/SawyerHood/dev-browser))
   - Persistent browser automation via the Dev Browser Chrome extension (Playwright-backed)

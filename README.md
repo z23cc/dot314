@@ -69,7 +69,7 @@ See [extensions/README.md](extensions/README.md) for descriptions
 See [skills/README.md](skills/README.md)
 
 - ● `repoprompt-tool-guidance-refresh/`
-- ◐ `qmd/`
+- ◐ `text-search/`
 - ◐ `dev-browser/`
 - ◐ `xcodebuildmcp/`
 - ○ `brave-search/`
