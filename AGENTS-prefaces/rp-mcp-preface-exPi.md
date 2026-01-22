@@ -1,6 +1,6 @@
 # Tool Protocol
 
-The following instructions **override** generic tool guidance for **repo exploration, context building, and file editing** inside Pi.
+The following instructions **override** generic tool guidance for **repo exploration, context building, and file editing**.
 
 RepoPrompt MCP tools are the default for repo-scoped work because they materially improve context quality and reduce routing mistakes.
 
@@ -19,7 +19,7 @@ MCP tools operate directly against this state. Use `select_window window_id=N` t
 
 ## Why RepoPrompt Tools Are Default
 
-Use RepoPrompt MCP tools over Pi's native tools for repo work because they improve context quality:
+Use RepoPrompt MCP tools over native tools for repo work because they improve context quality:
 
 - **Better exploration primitives**: `get_file_tree`, `file_search`, and `get_code_structure` are gitignore-aware and tuned for codebase navigation
 - **Selection = context**: the compose tab's selection is the single source of truth for what `chat_send` sees
@@ -48,7 +48,7 @@ Rationale: Workspaces represent coherent working contexts. Mixing unrelated repo
 
 Do not use bash for: `ls`, `find`, `grep`, `cat`, `wc`, `tree`, or similar file exploration.
 
-Do not use Pi's native `read`, `grep`, `find`, `ls`, `write`, or `edit` for repo work.
+Do not use native file-reading, search, file-creation, or file-editing tools for repo work.
 
 Never switch workspaces in an existing window unless the user explicitly says it's safe. Switching clobbers selection, prompt, and context. Use `open_in_new_window=true`.
 
@@ -149,7 +149,7 @@ When the task involves a repository, RepoPrompt is your toolkit for exploration,
 2. `select_window window_id=N`
 3. Then use `get_file_tree`, `file_search`, `read_file`, `apply_edits`
 
-Use Pi-native `ls/find/grep/read/edit/write` only when RepoPrompt is unavailable after one retry.
+Use native tools only when RepoPrompt is unavailable after one retry.
 
 Unexpected output is usually a routing issue—wrong workspace, wrong window, wrong tab—not a tool failure. Check routing before falling back.
 

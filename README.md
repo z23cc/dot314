@@ -90,9 +90,11 @@ See [prompts/README.md](prompts/README.md)
 
 ### AGENTS.md prefaces for reliable RepoPrompt tool usage
 
-- ● `AGENTS-prefaces/rp-cli-preface.md` -- for use with Pi and the `repoprompt-cli` extension
-- ● `AGENTS-prefaces/rp-mcp-preface.md` -- for use with Pi and the `repoprompt-mcp` extension
-- ● `AGENTS-prefaces/rp-mcp-preface-exPi.md` -- for use with other harnesses
+See [AGENTS-prefaces/README.md](AGENTS-prefaces/README.md)
+
+- ● `AGENTS-prefaces/rp-cli-preface.md`
+- ● `AGENTS-prefaces/rp-mcp-preface.md`
+- ● `AGENTS-prefaces/rp-mcp-preface-exPi.md`
 
 ## Themes
 

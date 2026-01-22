@@ -8,20 +8,20 @@
 		"teal": "#61afef",
 		"green": "#50fa7b",
 		"red": "#fd3482",
-		"yellow": "#bdfa8c",
+		"yellow": "#edc29d",
 		"orangeJkPurple": "#d99ff9",
 		"pink": "#ae66ff",
 		"foreground": "#f8f8f2",
 		"comment": "#4b77ac",
 		"muted": "#536aa4",
-		"dimGray": "#735d79",
-		"darkGray": "#57495a",
+		"dimGray": "#3c386e",
+		"darkGray": "#322f5c",
 		"background": "#0b0b11",
-		"bgLighter": "#1d1d31",
+		"bgLighter": "#20203b",
 		"bgSlightlyLighter": "#232342",
 		"selection": "#7e5489",
 		"selectedBg": "#4e2d56",
-		"userMsgBg": "#290c54",
+		"userMsgBg": "#0b1840",
 		"toolPendingBg": "#16072b",
 		"toolSuccessBg": "#16072b",
 		"toolErrorBg": "#2d0b3f",
@@ -87,8 +87,8 @@
 		"bashMode": "green"
 	},
 	"export": {
-		"pageBg": "#1a1a26",
-		"cardBg": "#1e1e2e",
-		"infoBg": "#2d2a38"
+		"pageBg": "#1d1a33",
+		"cardBg": "#272445",
+		"infoBg": "#332f59"
 	}
 }

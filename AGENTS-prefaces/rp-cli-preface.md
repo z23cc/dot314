@@ -49,6 +49,8 @@ Never switch workspaces in an existing window unless the user explicitly says it
 
 Keep context intentional: select only what you need, prefer codemaps for reference files, use slices when only a portion matters, avoid `context --all` unless truly needed.
 
+Always use the `questionnaire` tool when asking the user questions. Never embed questions in prose.
+
 ---
 
 ## Quick Start
