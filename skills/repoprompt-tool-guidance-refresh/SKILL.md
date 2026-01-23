@@ -1,6 +1,6 @@
 ---
 name: repoprompt-tool-guidance-refresh
-description: Update RepoPrompt tool guidance based on MCP/CLI changes across versions. Two-phase workflow: invoke BEFORE upgrading (--pre), then AFTER upgrading (--post). Uses `$HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh/scripts/track-rp-version.sh` to detect and diff changes (outputs to `$HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh/rp-tool-defs/`).
+description: Update RepoPrompt tool guidance based on MCP/CLI changes across versions. Two-phase workflow: invoke BEFORE upgrading (--pre), then AFTER upgrading (--post). Uses `~/.pi/agent/skills/repoprompt-tool-guidance-refresh/scripts/track-rp-version.sh` to detect and diff changes (outputs to `~/.pi/agent/skills/repoprompt-tool-guidance-refresh/rp-tool-defs/`).
 ---
 
 # Workflow
@@ -8,20 +8,20 @@ description: Update RepoPrompt tool guidance based on MCP/CLI changes across ver
 This skill has two invocation modes depending on where you are in the upgrade cycle.
 
 **Canonical locations** (use these even if your working directory differs):
-- Skill directory: `$HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh/` (may be a symlink target)
-- Script: `$HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh/scripts/track-rp-version.sh`
-- Output directory: `$HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh/rp-tool-defs/`
+- Skill directory: `~/.pi/agent/skills/repoprompt-tool-guidance-refresh/` (may be a symlink target)
+- Script: `~/.pi/agent/skills/repoprompt-tool-guidance-refresh/scripts/track-rp-version.sh`
+- Output directory: `~/.pi/agent/skills/repoprompt-tool-guidance-refresh/rp-tool-defs/`
 
 ## Phase A — Pre-Upgrade (invoke BEFORE updating RepoPrompt)
 
 1. Run the version tracking script:
    ```bash
-   $HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh/scripts/track-rp-version.sh --pre
+   ~/.pi/agent/skills/repoprompt-tool-guidance-refresh/scripts/track-rp-version.sh --pre
    ```
-   (Equivalent if you `cd $HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh`: `./scripts/track-rp-version.sh --pre`)
+   (Equivalent if you `cd ~/.pi/agent/skills/repoprompt-tool-guidance-refresh`: `./scripts/track-rp-version.sh --pre`)
 
 2. The script writes a baseline snapshot under:
-   - `$HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh/rp-tool-defs/`
+   - `~/.pi/agent/skills/repoprompt-tool-guidance-refresh/rp-tool-defs/`
 
    Files created/updated:
    - `.baseline_version` — the baseline `rp-cli` version
@@ -35,12 +35,12 @@ This skill has two invocation modes depending on where you are in the upgrade cy
 
 1. Run the version tracking script:
    ```bash
-   $HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh/scripts/track-rp-version.sh --post
+   ~/.pi/agent/skills/repoprompt-tool-guidance-refresh/scripts/track-rp-version.sh --post
    ```
-   (Equivalent if you `cd $HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh`: `./scripts/track-rp-version.sh --post`)
+   (Equivalent if you `cd ~/.pi/agent/skills/repoprompt-tool-guidance-refresh`: `./scripts/track-rp-version.sh --post`)
 
 2. On version change, the script captures a *new* snapshot and generates diffs under:
-   - `$HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh/rp-tool-defs/`
+   - `~/.pi/agent/skills/repoprompt-tool-guidance-refresh/rp-tool-defs/`
 
    Files created/updated:
    - `rpcli-help__{NEW_VERSION}.txt` / `rpcli-l__{NEW_VERSION}.txt` — new snapshots
@@ -52,8 +52,8 @@ This skill has two invocation modes depending on where you are in the upgrade cy
 
 4. **(Optional) Changelog context**: Ask the user:
    > Paste release notes for v{NEW_VERSION} (or press Enter to skip):
-   
-   If provided, write to `$HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh/changelog-latest.md`. If skipped, proceed using diffs as ground truth.
+
+   If provided, write to `~/.pi/agent/skills/repoprompt-tool-guidance-refresh/changelog-latest.md`. If skipped, proceed using diffs as ground truth.
 
 5. **Review diffs** and identify what changed:
    - New tools
@@ -73,7 +73,7 @@ This skill has two invocation modes depending on where you are in the upgrade cy
 
 1. The CLI-related files:
    - **AGENTS prefaces**: `agent/AGENTS-prefaces/rp-cli-preface.md`
-   - **Prompts**: `$HOME/.pi/agent/skills/repoprompt-tool-guidance-refresh/rp-cli-prompts/rp-*-cli.md`
+   - **Prompts**: `~/.pi/agent/skills/repoprompt-tool-guidance-refresh/rp-cli-prompts/rp-*-cli.md`
    - **Extension**: `agent/extensions/repoprompt-cli.ts`
 
 2. Using the diffs as reference, make surgical updates to the preface and prompts.
