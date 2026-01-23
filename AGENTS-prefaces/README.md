@@ -10,6 +10,4 @@ Templates for the start of `AGENTS.md` or `CLAUDE.md` files. These steer agents 
 
 ## Notes
 
-The Pi-targeted prefaces include guidance to use the `questionnaire` extension for user questions—available in both dot314 and pi-mono under `/extensions`.
-
 The exPi variant is intended for other agent harnesses and omits Pi-specific features.
