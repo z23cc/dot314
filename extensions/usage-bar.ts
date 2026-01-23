@@ -599,57 +599,164 @@ async function fetchAntigravityUsage(modelRegistry: any): Promise<UsageSnapshot>
 // Codex (OpenAI) Usage
 // ============================================================================
 
-async function fetchCodexUsage(modelRegistry: any): Promise<UsageSnapshot> {
-	// Try to get token from pi's auth storage first
-	let accessToken: string | undefined;
-	let accountId: string | undefined;
+interface CodexCredential {
+	accessToken: string;
+	accountId?: string;
+	source: string; // Label identifying credential origin (e.g., "pi", "pi:second", ".codex:work")
+}
+
+/**
+ * Read all Codex tokens from ~/.pi/agent/auth.json
+ * Finds all keys starting with "openai-codex" (e.g., openai-codex, openai-codex-second, etc.)
+ */
+function readAllPiCodexAuths(): Array<{ accessToken: string; accountId?: string; source: string }> {
+	const piAuthPath = path.join(os.homedir(), ".pi", "agent", "auth.json");
+	const results: Array<{ accessToken: string; accountId?: string; source: string }> = [];
 
 	try {
-		// Try openai-codex provider first (pi's built-in)
-		accessToken = await modelRegistry?.authStorage?.getApiKey?.("openai-codex");
+		if (!fs.existsSync(piAuthPath)) return results;
+		const data = JSON.parse(fs.readFileSync(piAuthPath, "utf-8"));
 
-		// Get account ID if available from OAuth credentials
-		const cred = modelRegistry?.authStorage?.get?.("openai-codex");
-		if (cred?.type === "oauth") {
-			accountId = (cred as any).accountId;
+		// Find all keys that start with "openai-codex"
+		const codexKeys = Object.keys(data).filter(k => k.startsWith("openai-codex")).sort();
+
+		for (const key of codexKeys) {
+			const source = data[key];
+			if (!source) continue;
+
+			let accessToken: string | undefined;
+			let accountId: string | undefined;
+
+			// Pi auth pattern: .access
+			if (typeof source.access === "string") {
+				accessToken = source.access;
+				accountId = source.accountId;
+			}
+			// Fallback: codex schema
+			else if (source.tokens?.access_token) {
+				accessToken = source.tokens.access_token;
+				accountId = source.tokens.account_id;
+			}
+
+			if (accessToken) {
+				// Label with pi: prefix to distinguish from .codex/ files
+				const label = key === "openai-codex" ? "pi" : `pi:${key.replace("openai-codex-", "")}`;
+				results.push({ accessToken, accountId, source: label });
+			}
 		}
 	} catch {}
 
-	// Fallback to ~/.codex/auth.json if not in pi's auth
-	if (!accessToken) {
-		const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
-		const authPath = path.join(codexHome, "auth.json");
+	return results;
+}
 
-		try {
-			if (fs.existsSync(authPath)) {
-				const data = JSON.parse(fs.readFileSync(authPath, "utf-8"));
+/**
+ * Read Codex token from a ~/.codex/*auth*.json file
+ * Codex files use the pattern: data.tokens.access_token
+ */
+function readCodexAuthFile(filePath: string): { accessToken?: string; accountId?: string } {
+	try {
+		if (!fs.existsSync(filePath)) return {};
+		const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
 
-				if (data.OPENAI_API_KEY) {
-					accessToken = data.OPENAI_API_KEY;
-				} else if (data.tokens?.access_token) {
-					accessToken = data.tokens.access_token;
-					accountId = data.tokens.account_id;
+		// Codex file pattern: .tokens.access_token
+		if (data.tokens?.access_token) {
+			return { accessToken: data.tokens.access_token, accountId: data.tokens.account_id };
+		}
+		// Fallback: OPENAI_API_KEY
+		if (typeof data.OPENAI_API_KEY === "string" && data.OPENAI_API_KEY) {
+			return { accessToken: data.OPENAI_API_KEY };
+		}
+		return {};
+	} catch {
+		return {};
+	}
+}
+
+/**
+ * Discover all unique Codex credentials from multiple sources:
+ * 1. ~/.pi/agent/auth.json (authoritative, all openai-codex* keys)
+ * 2. modelRegistry.authStorage (runtime auth, may be fresher)
+ * 3. ~/.codex/*auth*.json files
+ * Deduplicates by access_token first, then by usage stats when fetched
+ */
+async function discoverCodexCredentials(modelRegistry: any): Promise<CodexCredential[]> {
+	const credentials: CodexCredential[] = [];
+	const seenTokens = new Set<string>();
+
+	// 1. Primary: from ~/.pi/agent/auth.json (authoritative source)
+	// Read ALL openai-codex* keys (e.g., openai-codex, openai-codex-second, etc.)
+	const piAuths = readAllPiCodexAuths();
+	for (const piAuth of piAuths) {
+		if (!seenTokens.has(piAuth.accessToken)) {
+			credentials.push({
+				accessToken: piAuth.accessToken,
+				accountId: piAuth.accountId,
+				source: piAuth.source,
+			});
+			seenTokens.add(piAuth.accessToken);
+		}
+	}
+
+	// 2. Fallback: modelRegistry.authStorage (may have fresher token or be only source)
+	try {
+		const registryToken = await modelRegistry?.authStorage?.getApiKey?.("openai-codex");
+		if (registryToken && !seenTokens.has(registryToken)) {
+			const cred = await modelRegistry?.authStorage?.get?.("openai-codex");
+			const accountId = cred?.type === "oauth" ? cred.accountId : undefined;
+			credentials.push({
+				accessToken: registryToken,
+				accountId,
+				source: "registry",
+			});
+			seenTokens.add(registryToken);
+		}
+	} catch {}
+
+	// 3. Additional: scan ~/.codex/ for *auth*.json files
+	const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
+	try {
+		if (fs.existsSync(codexHome) && fs.statSync(codexHome).isDirectory()) {
+			const files = fs.readdirSync(codexHome);
+			// Only match files starting with "auth" (e.g., auth.json, auth-work.json) to avoid oauth.json etc.
+			const authFiles = files.filter(f => /^auth([_-].+)?\.json$/i.test(f)).sort();
+
+			for (const authFile of authFiles) {
+				const authPath = path.join(codexHome, authFile);
+				const auth = readCodexAuthFile(authPath);
+
+				// Skip if no token or we've already seen this exact access_token
+				if (!auth.accessToken || seenTokens.has(auth.accessToken)) {
+					continue;
 				}
-			}
-		} catch {}
-	}
 
-	if (!accessToken) {
-		return { provider: "codex", displayName: "Codex", windows: [], error: "No credentials" };
-	}
+				seenTokens.add(auth.accessToken);
+				// Label with .codex: prefix (e.g., "auth-xyz.json" -> ".codex:xyz")
+				const nameMatch = authFile.match(/auth[_-]?(.+)?\.json/i);
+				const suffix = nameMatch?.[1] || "auth";
+				const label = `.codex:${suffix}`;
+				credentials.push({ accessToken: auth.accessToken, accountId: auth.accountId, source: label });
+			}
+		}
+	} catch {}
+
+	return credentials;
+}
+
+async function fetchCodexUsageForCredential(cred: CodexCredential): Promise<UsageSnapshot> {
+	const displayName = `Codex (${cred.source})`;
 
 	try {
 		const controller = new AbortController();
 		setTimeout(() => controller.abort(), 5000);
 
 		const headers: Record<string, string> = {
-			Authorization: `Bearer ${accessToken}`,
+			Authorization: `Bearer ${cred.accessToken}`,
 			"User-Agent": "CodexBar",
 			Accept: "application/json",
 		};
 
-		if (accountId) {
-			headers["ChatGPT-Account-Id"] = accountId;
+		if (cred.accountId) {
+			headers["ChatGPT-Account-Id"] = cred.accountId;
 		}
 
 		const res = await fetch("https://chatgpt.com/backend-api/wham/usage", {
@@ -659,11 +766,11 @@ async function fetchCodexUsage(modelRegistry: any): Promise<UsageSnapshot> {
 		});
 
 		if (res.status === 401 || res.status === 403) {
-			return { provider: "codex", displayName: "Codex", windows: [], error: "Token expired" };
+			return { provider: "codex", displayName, windows: [], error: "Token expired" };
 		}
 
 		if (!res.ok) {
-			return { provider: "codex", displayName: "Codex", windows: [], error: `HTTP ${res.status}` };
+			return { provider: "codex", displayName, windows: [], error: `HTTP ${res.status}` };
 		}
 
 		const data = await res.json() as any;
@@ -674,10 +781,12 @@ async function fetchCodexUsage(modelRegistry: any): Promise<UsageSnapshot> {
 			const pw = data.rate_limit.primary_window;
 			const resetDate = pw.reset_at ? new Date(pw.reset_at * 1000) : undefined;
 			const windowHours = Math.round((pw.limit_window_seconds || 10800) / 3600);
+			const usedPercent = typeof pw.used_percent === "number" ? pw.used_percent : Number(pw.used_percent) || 0;
 			windows.push({
 				label: `${windowHours}h`,
-				usedPercent: pw.used_percent || 0,
+				usedPercent,
 				resetDescription: resetDate ? formatReset(resetDate) : undefined,
+				resetsAt: resetDate,
 			});
 		}
 
@@ -687,10 +796,12 @@ async function fetchCodexUsage(modelRegistry: any): Promise<UsageSnapshot> {
 			const resetDate = sw.reset_at ? new Date(sw.reset_at * 1000) : undefined;
 			const windowHours = Math.round((sw.limit_window_seconds || 86400) / 3600);
 			const label = windowHours >= 24 ? "Week" : `${windowHours}h`;
+			const usedPercent = typeof sw.used_percent === "number" ? sw.used_percent : Number(sw.used_percent) || 0;
 			windows.push({
 				label,
-				usedPercent: sw.used_percent || 0,
+				usedPercent,
 				resetDescription: resetDate ? formatReset(resetDate) : undefined,
+				resetsAt: resetDate,
 			});
 		}
 
@@ -703,10 +814,60 @@ async function fetchCodexUsage(modelRegistry: any): Promise<UsageSnapshot> {
 			plan = plan ? `${plan} ($${balance.toFixed(2)})` : `$${balance.toFixed(2)}`;
 		}
 
-		return { provider: "codex", displayName: "Codex", windows, plan };
+		return { provider: "codex", displayName, windows, plan };
 	} catch (e) {
-		return { provider: "codex", displayName: "Codex", windows: [], error: String(e) };
+		return { provider: "codex", displayName, windows: [], error: String(e) };
 	}
+}
+
+/**
+ * Generate a fingerprint from usage stats for deduplication.
+ * Two credentials accessing the same workspace will have identical stats.
+ * Uses absolute timestamps (not relative formatReset strings) for stability.
+ */
+function usageFingerprint(snapshot: UsageSnapshot): string | null {
+	if (snapshot.error || snapshot.windows.length === 0) {
+		return null; // Can't fingerprint errors or empty results
+	}
+	// Create a strict fingerprint from all window data using stable values
+	const parts = snapshot.windows.map(w => {
+		const pct = Number.isFinite(w.usedPercent) ? w.usedPercent.toFixed(2) : "NaN";
+		const resetTs = w.resetsAt ? w.resetsAt.getTime() : "";
+		return `${w.label}:${pct}:${resetTs}`;
+	});
+	return parts.sort().join("|");
+}
+
+async function fetchAllCodexUsages(modelRegistry: any): Promise<UsageSnapshot[]> {
+	const credentials = await discoverCodexCredentials(modelRegistry);
+
+	if (credentials.length === 0) {
+		return [{ provider: "codex", displayName: "Codex", windows: [], error: "No credentials" }];
+	}
+
+	// Fetch usage for all credentials in parallel
+	const results = await Promise.all(
+		credentials.map(cred => fetchCodexUsageForCredential(cred))
+	);
+
+	// Deduplicate by usage stats - if two credentials return identical stats,
+	// they access the same workspace and we only show the first one
+	const seenFingerprints = new Set<string>();
+	const deduplicated: UsageSnapshot[] = [];
+
+	for (const result of results) {
+		const fingerprint = usageFingerprint(result);
+		if (fingerprint === null) {
+			// Keep errors/empty results (they might be transient)
+			deduplicated.push(result);
+		} else if (!seenFingerprints.has(fingerprint)) {
+			seenFingerprints.add(fingerprint);
+			deduplicated.push(result);
+		}
+		// Skip if fingerprint already seen (duplicate workspace)
+	}
+
+	return deduplicated;
 }
 
 // ============================================================================
@@ -953,11 +1114,11 @@ class UsageComponent {
 			Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), ms))]);
 
 		// Fetch usage and status in parallel
-		const [claude, copilot, gemini, codex, antigravity, kiro, zai, claudeStatus, copilotStatus, geminiStatus, codexStatus] = await Promise.all([
+		const [claude, copilot, gemini, codexResults, antigravity, kiro, zai, claudeStatus, copilotStatus, geminiStatus, codexStatus] = await Promise.all([
 			timeout(fetchClaudeUsage(), 6000, { provider: "anthropic", displayName: "Claude", windows: [], error: "Timeout" }),
 			timeout(fetchCopilotUsage(this.modelRegistry), 6000, { provider: "copilot", displayName: "Copilot", windows: [], error: "Timeout" }),
 			timeout(fetchGeminiUsage(this.modelRegistry), 6000, { provider: "gemini", displayName: "Gemini", windows: [], error: "Timeout" }),
-			timeout(fetchCodexUsage(this.modelRegistry), 6000, { provider: "codex", displayName: "Codex", windows: [], error: "Timeout" }),
+			timeout(fetchAllCodexUsages(this.modelRegistry), 6000, [{ provider: "codex", displayName: "Codex", windows: [], error: "Timeout" }]),
 			timeout(fetchAntigravityUsage(this.modelRegistry), 6000, { provider: "antigravity", displayName: "Antigravity", windows: [], error: "Timeout" }),
 			timeout(fetchKiroUsage(), 6000, { provider: "kiro", displayName: "Kiro", windows: [], error: "Timeout" }),
 			timeout(fetchZaiUsage(), 6000, { provider: "zai", displayName: "z.ai", windows: [], error: "Timeout" }),
@@ -971,10 +1132,13 @@ class UsageComponent {
 		claude.status = claudeStatus;
 		copilot.status = copilotStatus;
 		gemini.status = geminiStatus;
-		codex.status = codexStatus;
+		// Attach codex status to all codex accounts
+		for (const codex of codexResults) {
+			codex.status = codexStatus;
+		}
 
 		// Filter out providers with no data and no error (not configured)
-		const allUsages = [claude, copilot, gemini, codex, antigravity, kiro, zai];
+		const allUsages = [claude, copilot, gemini, ...codexResults, antigravity, kiro, zai];
 		this.usages = allUsages.filter(u => u.windows.length > 0 || u.error !== "No credentials" && u.error !== "kiro-cli not found" && u.error !== "No API key");
 		this.loading = false;
 		this.tui.requestRender();
