@@ -272,6 +272,224 @@ async function extractConversation(
 }
 
 /**
+ * Extract conversation messages from the *currently selected branch* (root → current leaf)
+ * using the in-memory SessionManager tree state.
+ *
+ * This intentionally includes *all* turns on the branch, including turns that may no longer
+ * be shown in the TUI after compaction.
+ */
+function extractConversationFromBranch(
+  sessionManager: any,
+  includeThinking: boolean = false
+): { meta: SessionMeta; conversation: string[]; leafId: string | null } {
+  const conversation: string[] = [];
+  const meta: SessionMeta = {
+    sessionId: "",
+    startedAt: null,
+    cwd: "",
+  };
+
+  const header = typeof sessionManager.getHeader === "function" ? sessionManager.getHeader() : null;
+  if (header && typeof header === "object") {
+    const headerObj = header as Record<string, unknown>;
+    meta.sessionId = typeof headerObj.id === "string" ? headerObj.id : "";
+    meta.startedAt = parseIsoTimestamp(headerObj.timestamp);
+    if (typeof headerObj.cwd === "string") {
+      meta.cwd = headerObj.cwd;
+    }
+  }
+
+  if (!meta.cwd && typeof sessionManager.getCwd === "function") {
+    meta.cwd = String(sessionManager.getCwd() || "");
+  }
+
+  const leafId = typeof sessionManager.getLeafId === "function" ? (sessionManager.getLeafId() as string | null) : null;
+
+  const branchEntries: unknown[] =
+    leafId && typeof sessionManager.getBranch === "function" ? (sessionManager.getBranch(leafId) as unknown[]) : [];
+
+  const pendingToolCalls: Map<string, ToolCallInfo> = new Map();
+
+  for (const entry of branchEntries) {
+    if (typeof entry !== "object" || entry === null) {
+      continue;
+    }
+
+    const entryObj = entry as Record<string, unknown>;
+    if (entryObj.type !== "message") {
+      continue;
+    }
+
+    const msg = entryObj.message;
+    if (typeof msg !== "object" || msg === null || Array.isArray(msg)) {
+      continue;
+    }
+
+    const msgObj = msg as Record<string, unknown>;
+    const role = msgObj.role;
+
+    // Handle user messages
+    if (role === "user") {
+      const text = extractTextFromContent(msgObj.content);
+      if (text) {
+        conversation.push(`USER: ${text}`);
+      }
+      continue;
+    }
+
+    // Handle assistant messages
+    if (role === "assistant") {
+      const content = msgObj.content;
+      const textParts: string[] = [];
+      const toolParts: string[] = [];
+
+      if (typeof content === "string") {
+        if (content.trim()) {
+          textParts.push(content.trim());
+        }
+      } else if (Array.isArray(content)) {
+        for (const item of content) {
+          if (typeof item !== "object" || item === null) {
+            continue;
+          }
+          const itemObj = item as Record<string, unknown>;
+          const itype = itemObj.type;
+
+          if (itype === "text") {
+            const t = itemObj.text;
+            if (typeof t === "string" && t.trim()) {
+              textParts.push(t.trim());
+            }
+          } else if (itype === "thinking") {
+            if (includeThinking) {
+              const t = itemObj.thinking;
+              if (typeof t === "string" && t.trim()) {
+                textParts.push(`[thinking]\n${t.trim()}`);
+              }
+            }
+          } else if (itype === "toolCall") {
+            const toolName = String(itemObj.name || "tool");
+            const toolId = String(itemObj.id || "");
+            const args = itemObj.arguments;
+            let cmd = "";
+
+            if (typeof args === "object" && args !== null && !Array.isArray(args)) {
+              const argsObj = args as Record<string, unknown>;
+              const cmdVal = argsObj.command || argsObj.cmd;
+              if (typeof cmdVal === "string") {
+                cmd = cmdVal;
+              }
+              if (!cmd) {
+                // Fall back to JSON for unknown tool argument shapes
+                try {
+                  cmd = JSON.stringify(args, Object.keys(args).sort());
+                } catch {
+                  cmd = String(args);
+                }
+              }
+            } else {
+              cmd = String(args);
+            }
+
+            if (toolId) {
+              pendingToolCalls.set(toolId, { name: toolName, cmd });
+            }
+            toolParts.push(`[tool:${toolName}] ${cmd}`.trim());
+          }
+        }
+      }
+
+      let fullText = textParts.filter((p) => p).join("\n").trim();
+      if (toolParts.length > 0) {
+        fullText = (fullText ? fullText + "\n" : "") + toolParts.join("\n");
+      }
+
+      if (fullText) {
+        conversation.push(`ASSISTANT: ${fullText}`);
+      }
+      continue;
+    }
+
+    // Handle tool results
+    if (role === "toolResult") {
+      const toolName = String(msgObj.toolName || msgObj.tool_name || "tool");
+      const toolCallId = String(msgObj.toolCallId || msgObj.tool_call_id || "");
+      const isError = Boolean(msgObj.isError || msgObj.is_error);
+      const out = extractTextFromContent(msgObj.content);
+
+      let label = toolName;
+      if (toolCallId && pendingToolCalls.has(toolCallId)) {
+        const pending = pendingToolCalls.get(toolCallId)!;
+        pendingToolCalls.delete(toolCallId);
+        label = pending.name || toolName;
+        if (pending.cmd) {
+          label = `${label}: ${pending.cmd}`;
+        }
+      }
+
+      if (out && out !== "(no content)") {
+        conversation.push(`SYSTEM [${label} output${isError ? " ERROR" : ""}]:\n${out}`);
+      }
+      continue;
+    }
+  }
+
+  return { meta, conversation, leafId };
+}
+
+/**
+ * Process the currently selected branch and write readable output
+ */
+async function processSessionFromBranch(
+  sessionManager: any,
+  sessionFile: string,
+  outputDir: string,
+  includeThinking: boolean = false
+): Promise<string | null> {
+  const { meta, conversation, leafId } = extractConversationFromBranch(sessionManager, includeThinking);
+
+  if (conversation.length === 0) {
+    return null;
+  }
+
+  const project = meta.cwd ? path.basename(meta.cwd) : "unknown";
+  const projectSlug = slug(project);
+
+  const started = meta.startedAt || new Date();
+  const stamp = formatTimestamp(started);
+  const sid = (meta.sessionId || "unknown").slice(0, 8);
+  const outputFile = path.join(outputDir, `${projectSlug}_pi_${stamp}_${sid}.md`);
+
+  // Ensure output directory exists
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  // Build output content
+  const lines: string[] = [];
+  lines.push("PI SESSION (processed)");
+  lines.push("mode: branch");
+  lines.push(`leaf: ${leafId === null ? "null" : leafId}`);
+  if (meta.sessionId) {
+    lines.push(`id: ${meta.sessionId}`);
+  }
+  if (meta.startedAt) {
+    lines.push(`started: ${meta.startedAt.toISOString()}`);
+  }
+  if (meta.cwd) {
+    lines.push(`cwd: ${meta.cwd}`);
+  }
+  lines.push(`source: ${sessionFile}`);
+  lines.push("");
+
+  for (const msg of conversation) {
+    lines.push(msg.trimEnd());
+    lines.push("");
+  }
+
+  fs.writeFileSync(outputFile, lines.join("\n"), "utf-8");
+  return outputFile;
+}
+
+/**
  * Process a session JSONL file and write readable output
  */
 async function processSession(
@@ -338,7 +556,7 @@ const OUTPUT_DIR = path.join(os.homedir(), ".pi", "agent", "pi-sessions-extracte
 
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("md", {
-    description: "Export current session to markdown. Use '/md thinking' to include thinking blocks.",
+    description: "Export current session to markdown (current /tree branch). Use '/md thinking' to include thinking blocks. Use '/md all' for full file.",
     handler: async (args, ctx) => {
       const sessionFile = ctx.sessionManager.getSessionFile();
 
@@ -347,15 +565,22 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const includeThinking = args.toLowerCase().trim().startsWith("t");
+      const argsLower = args.toLowerCase();
+      const includeThinking = argsLower.trim().startsWith("t") || /\bthinking\b/.test(argsLower);
+      const exportAll = /\ball\b/.test(argsLower) || /\bfile\b/.test(argsLower);
 
       try {
-        const outputFile = await processSession(sessionFile, OUTPUT_DIR, includeThinking);
+        const outputFile = exportAll
+          ? await processSession(sessionFile, OUTPUT_DIR, includeThinking)
+          : await processSessionFromBranch(ctx.sessionManager, sessionFile, OUTPUT_DIR, includeThinking);
+
         if (outputFile) {
           const suffix = includeThinking ? " (with thinking)" : "";
-          ctx.ui.notify(`Processed${suffix}: ${outputFile}`, "success");
+          const mode = exportAll ? " (full file)" : " (branch)";
+          ctx.ui.notify(`Processed${suffix}${mode}: ${outputFile}`, "success");
         } else {
-          ctx.ui.notify("No meaningful conversation found in session", "error");
+          const mode = exportAll ? "session file" : "current branch";
+          ctx.ui.notify(`No meaningful conversation found in ${mode}`, "error");
         }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
