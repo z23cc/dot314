@@ -85,11 +85,11 @@
   - Skill command palette (`/skill`)
   - This version's scanning order matches Pi/Codex/Claude conventions and avoids symlink cycles when scanning skill dirs
 
-- ◐ [`tools.ts`](tools.ts) + [`tools-config.json`](tools-config.json) (upstream: )
+- ◐ [`tools.ts`](tools.ts) + [`tools-config.json`](tools-config.json) (upstream: [pi-mono examples](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent/examples/extensions))
   - `/tools` interactive enable/disable UI
   - This version persists tool enablement globally (`~/.pi/agent/extensions/tools-config.json`) and per-session via session entries
 
-- ◐ [`usage-bar.ts`](usage-bar.ts) (upstream: )
+- ◐ [`usage-bar.ts`](usage-bar.ts) (upstream: [hjanuschka/shitty-extensions](https://github.com/hjanuschka/shitty-extensions/tree/main))
   - `/usage` usage overlay for multiple providers, with provider status polling and reset countdowns
   - This version adds `alt+u` shortcut
 
