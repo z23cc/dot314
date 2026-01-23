@@ -54,7 +54,7 @@ Keep context intentional: select only what you need, prefer codemaps for referen
 | Repo structure | `get_file_tree type="files" [mode="folders"] [path="..."] [max_depth=N]` | gitignore-aware |
 | Code search | `file_search pattern="..." [mode="both\|path\|content"] [filter={...}] [context_lines=N]` | regex default |
 | API signatures | `get_code_structure paths=["dir/"] [scope="selected"]` | prefer directories first |
-| Context curation | `manage_selection op="get\|set\|add\|remove\|clear" [view="summary\|files\|content"]` | selection drives chat |
+| Context curation | `manage_selection op="get\|set\|add\|remove\|clear" [view="summary\|files\|content\|codemaps"]` | selection drives chat |
 | Snapshot | `workspace_context [include=["prompt","selection","code","tree","tokens"]]` | verify before chat |
 | Reading files | `read_file path="..." [start_line=N] [limit=N]` | 120–200 line chunks |
 | Code editing | `apply_edits path="..." search="..." replace="..." [all=true] [verbose=true]` | supports multi-edit, rewrite |
@@ -66,7 +66,7 @@ Keep context intentional: select only what you need, prefer codemaps for referen
 | Window routing | `rp({ windows: true })` then `rp({ bind: { window: N, tab: "Compose" } })` | bind before operating |
 | Workspace/tab mgmt | `manage_workspaces action="list\|switch\|create\|delete\|add_folder\|list_tabs\|select_tab"` | see workspace hygiene |
 | Auto context | `context_builder instructions="..." [response_type="clarify\|question\|plan\|review"]` | token-costly, invoke explicitly |
-| Git operations | `git op="status\|diff\|log\|show\|blame" [compare="..."] [detail="..."]` | token-efficient git abstraction |
+| Git operations | `git op="status\|diff\|log\|show\|blame" [compare="..."] [detail="..."]` | worktree support via `main`/`trunk` aliases, `@main:<branch>` |
 
 ---
 

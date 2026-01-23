@@ -201,5 +201,7 @@ Common calls:
 - `rp-cli -c apply_edits -j '{...}'` — complex edits (multi-edit, multiline, rewrite)
 - `rp-cli -c file_actions -j '{...}'` — creating files with complex content
 - `rp-cli -c git -j '{"op":"diff","detail":"files"}'` — token-efficient git operations
+- `rp-cli -c git -j '{"op":"diff","compare":"main"}'` — diff vs auto-detected trunk branch
+- `rp-cli -c git -j '{"op":"status","repo_root":"@main:feature-branch"}'` — target worktree by branch
 
 ---
