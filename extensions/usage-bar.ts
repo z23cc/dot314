@@ -1169,7 +1169,7 @@ class UsageComponent {
 
 		const lines: string[] = [];
 		lines.push(dim(`╭${hLine}╮`));
-		lines.push(box(bold(accent("AI Usage"))));
+		lines.push(box(bold(accent("Quota Usage"))));
 		lines.push(dim(`├${hLine}┤`));
 
 		if (this.loading) {
@@ -1179,7 +1179,7 @@ class UsageComponent {
 				// Provider header with status emoji and plan
 				const statusEmoji = getStatusEmoji(u.status);
 				const planStr = u.plan ? dim(` (${u.plan})`) : "";
-				const statusStr = statusEmoji ? ` ${statusEmoji}` : "";
+				const statusStr = (statusEmoji && !u.error) ? ` ${statusEmoji}` : "";
 				lines.push(box(bold(u.displayName) + planStr + statusStr));
 
 				// Show incident description if any
@@ -1196,14 +1196,14 @@ class UsageComponent {
 					lines.push(box(dim("  No data")));
 				} else {
 					for (const w of u.windows) {
-						const remaining = Math.max(0, 100 - w.usedPercent);
+						const used = Math.min(100, Math.max(0, w.usedPercent));
 						const barW = 12;
-						const filled = Math.round((w.usedPercent / 100) * barW);
+						const filled = Math.round((used / 100) * barW);
 						const empty = barW - filled;
-						const color = remaining <= 10 ? "error" : remaining <= 30 ? "warning" : "success";
+						const color = used >= 95 ? "error" : used >= 85 ? "warning" : used >= 70 ? "accent" : used >= 50 ? "muted" : "success";
 						const bar = t.fg(color, "█".repeat(filled)) + dim("░".repeat(empty));
 						const reset = w.resetDescription ? dim(`  ⏱ ${w.resetDescription}`) : "";
-						lines.push(box(`  ${w.label.padEnd(7)} ${bar} ${remaining.toFixed(0).padStart(3)}%${reset}`));
+						lines.push(box(`  ${w.label.padEnd(8)} ${bar} ${used.toFixed(0).padStart(3)}%${reset}`));
 					}
 				}
 				lines.push(box(""));
