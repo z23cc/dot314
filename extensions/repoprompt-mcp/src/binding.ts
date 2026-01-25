@@ -158,36 +158,184 @@ function parseWindowListFromJson(value: unknown): RpWindow[] | null {
   return windows;
 }
 
-async function fetchWindowsViaMcp(client: ReturnType<typeof getRpClient>): Promise<RpWindow[] | null> {
-  const listWindowsToolName = resolveToolName(client.tools, "list_windows");
-  if (!listWindowsToolName) {
+function parseWindowListFromManageWorkspacesText(text: string): RpWindow[] | null {
+  const windowsById = new Map<number, RpWindow>();
+
+  for (const line of text.split("\n")) {
+    if (!line.toLowerCase().includes("showing in windows")) {
+      continue;
+    }
+
+    const idsMatch = line.match(/showing in windows:\s*([0-9,\s]+)/i);
+    if (!idsMatch) {
+      continue;
+    }
+
+    // Extract workspace name from "• <name> —" segment
+    const workspaceMatch = line.match(/•\s*(.+?)\s+—/);
+    const workspace = workspaceMatch?.[1]?.trim() ?? "";
+
+    const ids = idsMatch[1]
+      .split(/[^0-9]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => parseInt(s, 10))
+      .filter((n) => Number.isFinite(n));
+
+    for (const id of ids) {
+      // Avoid overwriting a more specific/non-empty workspace name if we have one already
+      const existing = windowsById.get(id);
+      if (existing) {
+        if (!existing.workspace && workspace) {
+          existing.workspace = workspace;
+        }
+        continue;
+      }
+
+      windowsById.set(id, { id, workspace, roots: [] });
+    }
+  }
+
+  const windows = [...windowsById.values()].sort((a, b) => a.id - b.id);
+  return windows.length > 0 ? windows : null;
+}
+
+function parseWindowListFromManageWorkspacesJson(value: unknown): RpWindow[] | null {
+  if (!value || typeof value !== "object") {
     return null;
   }
 
-  const result = await client.callTool(listWindowsToolName, {});
+  const root = value as Record<string, unknown>;
+  const workspacesValue =
+    Array.isArray((root as { workspaces?: unknown }).workspaces)
+      ? (root as { workspaces: unknown[] }).workspaces
+      : Array.isArray(value)
+        ? (value as unknown[])
+        : null;
 
+  if (!Array.isArray(workspacesValue)) {
+    return null;
+  }
+
+  const parseIds = (raw: unknown): number[] => {
+    if (typeof raw === "number" && Number.isFinite(raw)) return [raw];
+    if (typeof raw === "string") {
+      return raw
+        .split(/[^0-9]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => parseInt(s, 10))
+        .filter((n) => Number.isFinite(n));
+    }
+    if (Array.isArray(raw)) {
+      return raw
+        .map((v) => {
+          if (typeof v === "number" && Number.isFinite(v)) return v;
+          if (typeof v === "string") {
+            const parsed = parseInt(v, 10);
+            return Number.isFinite(parsed) ? parsed : undefined;
+          }
+          return undefined;
+        })
+        .filter((n): n is number => typeof n === "number");
+    }
+    return [];
+  };
+
+  const windowsById = new Map<number, RpWindow>();
+
+  for (const ws of workspacesValue) {
+    if (!ws || typeof ws !== "object") {
+      continue;
+    }
+
+    const obj = ws as Record<string, unknown>;
+    const workspace = typeof obj.name === "string" ? obj.name : typeof obj.workspace === "string" ? obj.workspace : "";
+
+    const ids = parseIds(
+      obj.showingInWindows ?? obj.showing_in_windows ?? obj.windowIds ?? obj.window_ids ?? obj.windows
+    );
+
+    for (const id of ids) {
+      const existing = windowsById.get(id);
+      if (existing) {
+        if (!existing.workspace && workspace) {
+          existing.workspace = workspace;
+        }
+        continue;
+      }
+      windowsById.set(id, { id, workspace, roots: [] });
+    }
+  }
+
+  const windows = [...windowsById.values()].sort((a, b) => a.id - b.id);
+  return windows.length > 0 ? windows : null;
+}
+
+async function fetchWindowsViaManageWorkspaces(client: ReturnType<typeof getRpClient>): Promise<RpWindow[] | null> {
+  const manageWorkspacesToolName = resolveToolName(client.tools, "manage_workspaces");
+  if (!manageWorkspacesToolName) {
+    return null;
+  }
+
+  const result = await client.callTool(manageWorkspacesToolName, { action: "list" });
   if (result.isError) {
-    const text = extractTextContent(result.content);
-    throw new Error(`Failed to list windows: ${text}`);
+    return null;
   }
 
   const json = extractJsonContent(result.content);
-  const windowsFromJson = parseWindowListFromJson(json);
-  if (windowsFromJson && windowsFromJson.length > 0) {
-    return windowsFromJson;
+  const fromJson = parseWindowListFromManageWorkspacesJson(json);
+  if (fromJson) {
+    return fromJson;
   }
 
   const text = extractTextContent(result.content);
-  return parseWindowList(text);
+  return parseWindowListFromManageWorkspacesText(text);
 }
 
-async function fetchWindowsViaCli(): Promise<RpWindow[]> {
+async function fetchWindowsViaMcp(client: ReturnType<typeof getRpClient>): Promise<RpWindow[] | null> {
+  const listWindowsToolName = resolveToolName(client.tools, "list_windows");
+  if (listWindowsToolName) {
+    const result = await client.callTool(listWindowsToolName, {});
+
+    if (result.isError) {
+      const text = extractTextContent(result.content);
+      throw new Error(`Failed to list windows: ${text}`);
+    }
+
+    const json = extractJsonContent(result.content);
+    const windowsFromJson = parseWindowListFromJson(json);
+    if (windowsFromJson && windowsFromJson.length > 0) {
+      return windowsFromJson;
+    }
+
+    const text = extractTextContent(result.content);
+    return parseWindowList(text);
+  }
+
+  // Try to infer windows from manage_workspaces list output.
+  return await fetchWindowsViaManageWorkspaces(client);
+}
+
+async function fetchWindowsViaCli(pi?: ExtensionAPI): Promise<RpWindow[]> {
   try {
-    const { stdout, stderr } = await execFileAsync(
-      "rp-cli",
-      ["-e", "windows"],
-      { timeout: 5000, maxBuffer: 1024 * 1024 }
-    );
+    let stdout = "";
+    let stderr = "";
+
+    // Prefer pi.exec when available, since Pi often runs with a richer PATH than this Node process
+    if (pi) {
+      const result = await pi.exec("rp-cli", ["-e", "windows"], { timeout: 5000 });
+      stdout = result.stdout ?? "";
+      stderr = result.stderr ?? "";
+    } else {
+      const result = await execFileAsync(
+        "rp-cli",
+        ["-e", "windows"],
+        { timeout: 5000, maxBuffer: 1024 * 1024 }
+      );
+      stdout = result.stdout;
+      stderr = result.stderr;
+    }
 
     const output = `${stdout}\n${stderr}`.trim();
     const windows = parseWindowList(output);
@@ -204,8 +352,14 @@ async function fetchWindowsViaCli(): Promise<RpWindow[]> {
     return [];
   } catch (err) {
     const error = err as { code?: string; message?: string };
-    if (error.code === "ENOENT") {
-      throw new Error("rp-cli not found in PATH (required for window listing/binding)");
+    const message = error?.message ?? String(err);
+
+    // Node's execFile throws { code: "ENOENT" }, while pi.exec may throw an Error with an ENOENT-ish message
+    if (error.code === "ENOENT" || message.includes("ENOENT") || message.toLowerCase().includes("not found")) {
+      throw new Error(
+        "rp-cli not found in PATH (required for window listing/binding). " +
+          "Install rp-cli or ensure Pi inherits your shell PATH."
+      );
     }
 
     throw err;
@@ -215,7 +369,7 @@ async function fetchWindowsViaCli(): Promise<RpWindow[]> {
 /**
  * Fetch list of RepoPrompt windows (without roots)
  */
-export async function fetchWindows(): Promise<RpWindow[]> {
+export async function fetchWindows(pi?: ExtensionAPI): Promise<RpWindow[]> {
   const client = getRpClient();
   if (!client.isConnected) {
     throw new Error("Not connected to RepoPrompt");
@@ -226,7 +380,7 @@ export async function fetchWindows(): Promise<RpWindow[]> {
     return windowsFromMcp;
   }
 
-  return await fetchWindowsViaCli();
+  return await fetchWindowsViaCli(pi);
 }
 
 function normalizeRootLine(line: string): string | null {
@@ -410,7 +564,7 @@ export interface AutoDetectAndBindResult {
 export async function autoDetectAndBind(pi: ExtensionAPI, config: RpConfig): Promise<AutoDetectAndBindResult> {
   const cwd = process.cwd();
 
-  const windows = await fetchWindows();
+  const windows = await fetchWindows(pi);
 
   if (windows.length === 0) {
     return { binding: null, windows: [] };
@@ -462,7 +616,7 @@ export async function bindToWindow(
   tab: string | undefined,
   config: RpConfig
 ): Promise<RpBinding> {
-  const windows = await fetchWindows();
+  const windows = await fetchWindows(pi);
   const window = windows.find((w) => w.id === windowId);
 
   if (!window && windows.length > 0) {

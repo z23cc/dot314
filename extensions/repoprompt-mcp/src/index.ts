@@ -162,7 +162,7 @@ export default function repopromptMcp(pi: ExtensionAPI) {
             }
 
             try {
-              const windows = await fetchWindows();
+              const windows = await fetchWindows(pi);
               if (windows.length === 0) {
                 ctx.ui.notify("No RepoPrompt windows found", "warning");
                 return;
@@ -515,7 +515,7 @@ Mode priority: call > describe > search > windows > bind > status`,
   }
   
   async function showWindows(ctx: ExtensionContext): Promise<void> {
-    const windows = await fetchWindows();
+    const windows = await fetchWindows(pi);
     
     if (windows.length === 0) {
       ctx.ui.notify("No RepoPrompt windows found", "warning");
@@ -566,7 +566,7 @@ Mode priority: call > describe > search > windows > bind > status`,
   }
   
   async function executeListWindows() {
-    const windows = await fetchWindows();
+    const windows = await fetchWindows(pi);
     
     if (windows.length === 0) {
       return {
@@ -886,7 +886,7 @@ async function initializeExtension(
   const restoredBinding = getBinding();
   if (restoredBinding) {
     try {
-      const windows = await fetchWindows();
+      const windows = await fetchWindows(pi);
       if (windows.length > 0) {
         const stillExists = windows.some((w) => w.id === restoredBinding.windowId);
         if (!stillExists) {

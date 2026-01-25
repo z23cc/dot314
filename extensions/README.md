@@ -23,13 +23,12 @@
 
 - ● [`rp-native-tools-lock.ts`](rp-native-tools-lock.ts)
   - Disables Pi native repo-file tools (`read`, `write`, `edit`, `ls`, `find`, `grep`) when RepoPrompt tools are available
-  - Mode switch: `/rp-tools-lock off|auto|rp-mcp|rp-cli`
+  - Mode switch: `/rp-tools-lock off|auto`
     - `off`: no enforcement
     - `auto`: prefer `rp` (RepoPrompt MCP) if available; else `rp_exec` (RepoPrompt CLI); else behaves like `off`
-    - `rp-mcp`: enforce only when `rp` is available (does not fall back to `rp_exec`)
-    - `rp-cli`: enforce only when `rp_exec` is available (does not fall back to `rp`)
-  - Hotkey: `alt+L` cycles modes (off → auto → rp-mcp → rp-cli)
-  - Footer status indicator while enforced: `RP 🔒 mcp` or `RP 🔒 cli`
+  - Advanced modes (`rp-mcp`, `rp-cli`) are supported via config: `~/.pi/agent/extensions/rp-native-tools-lock.json`
+  - Hotkey: `alt+L` toggles modes (off ↔ auto)
+  - Footer status indicator while enforced: `RP 🔒`
   - Intended to complement the `/tools` extension without mutating `tools-config.json`
 
 <p align="center">

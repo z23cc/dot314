@@ -7,14 +7,16 @@
  * - Some models will "reach" for the native tools because they appear first / are more familiar
  * - If RepoPrompt is available, we want to force repo-scoped work through rp (MCP) or rp_exec (CLI)
  *
- * Modes:
+ * Modes (user-facing):
  * - off     : no enforcement
  * - auto    : enforce via rp if available; else rp_exec if available; else off
+ *
+ * Advanced modes (set via config file):
  * - rp-mcp  : enforce when the `rp` tool exists
  * - rp-cli  : enforce when the `rp_exec` tool exists
  *
  * Hotkeys:
- * - Alt+L: cycle lock mode (off → auto → rp-mcp → rp-cli)
+ * - Alt+L: toggle lock mode (off ↔ auto)
  *
  * Configuration precedence:
  * 1) Session branch override (via /rp-tools-lock)
@@ -46,7 +48,10 @@ const REQUIRED_TOOL_BY_MODE: Record<Exclude<Mode, "off" | "auto">, string> = {
 const NATIVE_FILE_TOOLS = ["read", "write", "edit", "ls", "find", "grep"];
 
 const TOGGLE_MODE_HOTKEY: KeyId = Key.alt("l");
-const MODE_CYCLE_ORDER: Mode[] = ["off", "auto", "rp-mcp", "rp-cli"];
+
+// Keep the interactive UX simple: users only toggle off/auto.
+// Advanced modes remain supported via the config file.
+const MODE_CYCLE_ORDER: Mode[] = ["off", "auto"];
 
 function normalizeMode(raw: string | undefined): Mode | undefined {
 	const value = (raw ?? "").trim().toLowerCase();
@@ -104,16 +109,20 @@ type EffectiveMode = Exclude<Mode, "auto">;
 
 function computeEffectiveMode(
 	allToolNames: Set<string>,
+	activeToolNames: Set<string>,
 	requestedMode: Mode,
 ): { effectiveMode: EffectiveMode; requiredTool: string | undefined } {
 	if (requestedMode === "off") return { effectiveMode: "off", requiredTool: undefined };
 
 	if (requestedMode === "auto") {
-		if (allToolNames.has("rp")) return { effectiveMode: "rp-mcp", requiredTool: "rp" };
-		if (allToolNames.has("rp_exec")) return { effectiveMode: "rp-cli", requiredTool: "rp_exec" };
+		// In auto mode, respect the user's tool configuration.
+		// We only prefer a RepoPrompt entrypoint if the user has enabled it.
+		if (activeToolNames.has("rp")) return { effectiveMode: "rp-mcp", requiredTool: "rp" };
+		if (activeToolNames.has("rp_exec")) return { effectiveMode: "rp-cli", requiredTool: "rp_exec" };
 		return { effectiveMode: "off", requiredTool: undefined };
 	}
 
+	// Advanced/maintainer modes: enforce based on tool availability (even if currently disabled)
 	return {
 		effectiveMode: requestedMode,
 		requiredTool: REQUIRED_TOOL_BY_MODE[requestedMode],
@@ -121,8 +130,9 @@ function computeEffectiveMode(
 }
 
 function buildStatusText(effectiveMode: EffectiveMode): string | undefined {
-	if (effectiveMode === "rp-mcp") return "RP 🔒 mcp";
-	if (effectiveMode === "rp-cli") return "RP 🔒 cli";
+	if (effectiveMode === "rp-mcp" || effectiveMode === "rp-cli") {
+		return "RP 🔒";
+	}
 	return undefined;
 }
 
@@ -132,7 +142,8 @@ function enforceMode(
 	requestedMode: Mode,
 ): { enforced: boolean; reason?: string; effectiveMode: EffectiveMode; requiredTool?: string } {
 	const allToolNames = new Set(pi.getAllTools().map((t) => t.name));
-	const { effectiveMode, requiredTool } = computeEffectiveMode(allToolNames, requestedMode);
+	const activeToolNames = new Set(pi.getActiveTools());
+	const { effectiveMode, requiredTool } = computeEffectiveMode(allToolNames, activeToolNames, requestedMode);
 
 	if (effectiveMode === "off") {
 		setStatus(ctx, undefined);
@@ -158,6 +169,7 @@ function enforceMode(
 
 	// Ensure the required RepoPrompt tool stays available
 	if (!next.includes(requiredTool)) next.push(requiredTool);
+
 
 	// Only apply when changed
 	const activeSet = new Set(active);
@@ -217,8 +229,13 @@ export default function rpNativeToolsLock(pi: ExtensionAPI): void {
 		}
 
 		if (enforced.enforced) {
-			const suffix = requestedMode === "auto" ? ` → ${enforced.effectiveMode}` : "";
-			ctx.ui.notify(`rp-tools-lock: ${requestedMode}${suffix} (native file tools disabled)`, "info");
+			// Keep user-facing messaging simple. Advanced detail in config.
+			if (requestedMode === "auto") {
+				ctx.ui.notify("rp-tools-lock: auto (native file tools disabled)", "info");
+				return;
+			}
+
+			ctx.ui.notify(`rp-tools-lock: ${requestedMode} (native file tools disabled)`, "info");
 			return;
 		}
 
@@ -237,30 +254,39 @@ export default function rpNativeToolsLock(pi: ExtensionAPI): void {
 	}
 
 	pi.registerCommand("rp-tools-lock", {
-		description: "RepoPrompt-first tooling: off | auto | rp-mcp | rp-cli (disables read/write/edit/ls/find/grep)",
+		description:
+			"RepoPrompt-first tooling: off | auto (disables read/write/edit/ls/find/grep). Advanced modes are available via config file.",
 		handler: async (args, ctx) => {
 			const raw = args?.trim();
+
+			const ALLOWED_MODES: Mode[] = ["off", "auto"];
 
 			// No args → interactive selector (if UI available)
 			if (!raw) {
 				if (!ctx.hasUI) {
-					console.error("Usage: /rp-tools-lock <off|auto|rp-mcp|rp-cli>");
+					console.error("Usage: /rp-tools-lock <off|auto>");
 					return;
 				}
 
-				const choice = await ctx.ui.select("RepoPrompt tool policy", ["off", "auto", "rp-mcp", "rp-cli"]);
+				const choice = await ctx.ui.select("RepoPrompt tool policy", ALLOWED_MODES);
 				if (!choice) return;
 				state = { mode: choice as Mode };
 			} else {
 				const mode = normalizeMode(raw);
-				if (!mode) {
+				if (!mode || !ALLOWED_MODES.includes(mode)) {
+					const message =
+						`Usage: /rp-tools-lock <off|auto> (got: ${raw})\n` +
+						"Advanced modes (rp-mcp/rp-cli) can be set via: " +
+						"~/.pi/agent/extensions/rp-native-tools-lock.json";
+
 					if (ctx.hasUI) {
-						ctx.ui.notify(`Usage: /rp-tools-lock <off|auto|rp-mcp|rp-cli> (got: ${raw})`, "error");
+						ctx.ui.notify(message, "error");
 					} else {
-						console.error(`Usage: /rp-tools-lock <off|auto|rp-mcp|rp-cli> (got: ${raw})`);
+						console.error(message);
 					}
 					return;
 				}
+
 				state = { mode };
 			}
 
@@ -272,7 +298,7 @@ export default function rpNativeToolsLock(pi: ExtensionAPI): void {
 	});
 
 	pi.registerShortcut(TOGGLE_MODE_HOTKEY, {
-		description: "Cycle rp-tools-lock mode (off → auto → rp-mcp → rp-cli)",
+		description: "Toggle rp-tools-lock mode (off ↔ auto)",
 		handler: async (ctx) => {
 			const current = resolveState(ctx).mode;
 			const next = getNextMode(current);
@@ -295,7 +321,8 @@ export default function rpNativeToolsLock(pi: ExtensionAPI): void {
 		state = resolveState(ctx);
 
 		const allToolNames = new Set(pi.getAllTools().map((t) => t.name));
-		const { effectiveMode, requiredTool } = computeEffectiveMode(allToolNames, state.mode);
+		const activeToolNames = new Set(pi.getActiveTools());
+		const { effectiveMode, requiredTool } = computeEffectiveMode(allToolNames, activeToolNames, state.mode);
 		if (effectiveMode === "off" || !requiredTool) return;
 		if (!allToolNames.has(requiredTool)) return;
 
