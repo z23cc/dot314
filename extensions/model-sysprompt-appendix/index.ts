@@ -20,8 +20,28 @@ function loadConfig(configPath: string): SysPromptAppendixConfig {
   return JSON.parse(raw) as SysPromptAppendixConfig;
 }
 
+const PROJECT_CONTEXT_MARKER = "\n# Project Context";
+
+function injectIntoSystemPrompt(systemPrompt: string, content: string): string {
+  const trimmed = content.trim();
+  if (!trimmed) return systemPrompt;
+
+  const markerIndex = systemPrompt.indexOf(PROJECT_CONTEXT_MARKER);
+  if (markerIndex !== -1) {
+    // Insert immediately before "# Project Context" with trailing newline
+    return systemPrompt.slice(0, markerIndex) + "\n" + trimmed + "\n" + systemPrompt.slice(markerIndex);
+  }
+
+  if (systemPrompt.startsWith("# Project Context")) {
+    return trimmed + "\n" + systemPrompt;
+  }
+
+  // Fallback: append at end if marker isn't present
+  return systemPrompt + "\n" + trimmed;
+}
+
 export default function (pi: ExtensionAPI) {
-  const configPath = path.join(getAgentDir(), "extensions", "model-sysprompt-appendix.json");
+  const configPath = path.join(getAgentDir(), "extensions", "model-sysprompt-appendix", "model-sysprompt-appendix.json");
   let config: SysPromptAppendixConfig = loadConfig(configPath);
 
   pi.registerCommand("model-sysprompt-appendix", {
@@ -58,8 +78,9 @@ export default function (pi: ExtensionAPI) {
 
     if (!syspromptAppendix && !modelLine) return;
 
+    const content = `# Model Context\n${modelLine}${syspromptAppendix}`.trimEnd();
     return {
-      systemPrompt: `${event.systemPrompt}\n\n# Model Context\n${modelLine}${syspromptAppendix}`.trimEnd(),
+      systemPrompt: injectIntoSystemPrompt(event.systemPrompt, content),
     };
   });
 }
