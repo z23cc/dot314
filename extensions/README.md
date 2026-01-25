@@ -51,9 +51,18 @@
   - `/ephemeral` toggles whether the current session file is deleted on exit (otherwise only possible via pre-committing `pi --no-session`), preventing throwaway sessions from cluttering `/resume`
   - Shortcut: `alt+e`
 
-- ● [`model-sysprompt-appendix.ts`](model-sysprompt-appendix.ts) + [`model-sysprompt-appendix.json`](model-sysprompt-appendix.json)
-  - Appends a per-model appendix to the system prompt (exact match or default).  Helpful for Claude models with confused identities (e.g. Opus 4.5, without a system prompt guiding it otherwise, assuming itself to be Sonnet 3.5 and low in capability)
+- ● [`model-sysprompt-appendix/`](model-sysprompt-appendix/)
+  - Appends a per-model appendix to the system prompt (exact match or default), right before the "# Project Context" section that leads into the contents of AGENTS.md.  Helpful, for example, for Claude models with confused identities (e.g. Opus 4.5, without a system prompt guiding it otherwise, assuming itself to be Sonnet 3.5 and low in capability)
   - `/model-sysprompt-appendix reload|status`
+  - Configurations stored in [`model-sysprompt-appendix/model-sysprompt-appendix.json`](model-sysprompt-appendix/model-sysprompt-appendix.json)
+
+- ● [`vog/`](vog/)
+  - Adds a user-controlled message to the system prompt (inserted just before "# Project Context"), applied across all models (unlike `model-sysprompt-appendix`, which is configurable per-model)
+  - `/vog on|off|<message>`
+    - `/vog on` / `/vog off` toggle whether the VoG is applied
+    - `/vog` with any other argument sets the message and enables the VoG
+    - `/vog` with no args opens an interactive menu to toggle and edit the message (multi-line editor)
+  - Persists config at [`vog/vog.json`](vog/vog.json) (cross-session, directly editable)
 
 - ● [`notify.ts`](notify.ts)
   - Desktop / sound / Pushover notifications (e.g. to smart watch) when an agent turn completes and exceeds a duration threshold

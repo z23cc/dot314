@@ -42,7 +42,7 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ○ `interactive-shell.ts`
 - ○ `mac-system-theme.ts`
 - ● `md.ts`
-- ● `model-sysprompt-appendix.ts`
+- ● `model-sysprompt-appendix/`
 - ● `notify.ts`
 - ◐ `oracle.ts`
 - ○ `pi-prompt-template-model/`
@@ -65,6 +65,7 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ◐ `tools.ts`
 - ◐ `ultrathink.ts`
 - ◐ `usage-bar.ts`
+- ● `vog/`
 
 ## Skills
 
