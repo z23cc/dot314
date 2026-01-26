@@ -1,0 +1,42 @@
+{
+  "name": "dot314",
+  "version": "0.1.0",
+  "description": "Collection of original or augmented Pi themes, skills, and extensions, several of which facilitate Pi's integration with RepoPrompt.",
+  "keywords": [
+    "pi-package"
+  ],
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./extensions/ephemeral-mode.ts",
+      "./extensions/guardrails/index.ts",
+      "./extensions/md.ts",
+      "./extensions/model-sysprompt-appendix/index.ts",
+      "./extensions/notify/index.ts",
+      "./extensions/oracle.ts",
+      "./extensions/plan-mode.ts",
+      "./extensions/raw-paste.ts",
+      "./extensions/repoprompt-cli.ts",
+      "./extensions/repoprompt-mcp/src/index.ts",
+      "./extensions/rp-native-tools-lock/index.ts",
+      "./extensions/sandbox/index.ts",
+      "./extensions/tools/index.ts",
+      "./extensions/usage-bar.ts",
+      "./extensions/vog/index.ts"
+    ],
+    "skills": [
+      "./skills/repoprompt-tool-guidance-refresh"
+    ],
+    "prompts": [],
+    "themes": [
+      "./themes"
+    ]
+  },
+  "dependencies": {
+    "@anthropic-ai/sandbox-runtime": "^0.0.26",
+    "@mariozechner/clipboard": "*",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@sinclair/typebox": "^0.34.33",
+    "diff": "^7.0.0"
+  }
+}

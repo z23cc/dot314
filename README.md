@@ -8,27 +8,89 @@
 
 The Pi resources I'm currently enjoying - some adapted from the community, some original.  There is an emphasis here on making Pi and RepoPrompt co-operate well.
 
+## Provenance
+
+- ● → new
+- ◐ → from Pi community, modified
+- ○ → from Pi community, unmodified
+
 ## Installation
 
-Clone this repo anywhere:
+### Install as a Pi package
 
-    git clone git@github.com:w-winter/dot314.git ~/path/to/dot314-agent
+**Requires Pi 0.50.0+** (see [packages.md](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/packages.md))
+
+Install from git:
+
+```bash
+pi install git:github.com/w-winter/dot314
+# (or with the raw URL)
+pi install https://github.com/w-winter/dot314
+```
+
+Try it for a single run without installing:
+
+```bash
+pi -e git:github.com/w-winter/dot314
+```
+
+Project-local install (writes to `.pi/settings.json`):
+
+```bash
+pi install -l git:github.com/w-winter/dot314
+```
+
+After installing, use `pi config` to enable/disable individual extensions, skills, and themes.
+
+### What the Pi package includes
+
+This repo contains more resources than the package exports. When installed as a Pi package, Pi will discover only the resources listed in [`package.json`](package.json):
+
+**Extensions**
+- ● `ephemeral-mode.ts`
+- ◐ `guardrails/`
+- ● `md.ts`
+- ● `model-sysprompt-appendix/`
+- ● `notify/`
+- ◐ `oracle.ts`
+- ◐ `plan-mode.ts`
+- ◐ `raw-paste.ts`
+- ● `repoprompt-cli.ts`
+- ● `repoprompt-mcp/`
+- ● `rp-native-tools-lock/`
+- ◐ `sandbox/`
+- ◐ `tools/`
+- ◐ `usage-bar.ts`
+- ● `vog/`
+
+**Skills**
+- ● `repoprompt-tool-guidance-refresh/`
+
+**Themes**
+- ● `themes/violet-dawn.json`
+- ● `themes/violet-dusk.json`
+
+### Manual / symlink setup
+
+If you prefer a local working-copy workflow, clone this repo anywhere:
+
+```bash
+git clone git@github.com:w-winter/dot314.git ~/path/to/dot314-agent
+```
 
 Then symlink what you want into `~/.pi/agent/`:
 
-    # Example: add one extension
-    ln -s ~/path/to/dot314-agent/extensions/repoprompt-mcp.ts ~/.pi/agent/extensions/
+```bash
+# Example: add one extension (single-file)
+ln -s ~/path/to/dot314-agent/extensions/repoprompt-cli.ts ~/.pi/agent/extensions/
 
-    # Example: add all skills from this repo
-    ln -s ~/path/to/dot314-agent/skills/* ~/.pi/agent/skills/
+# Example: add all skills from this repo
+ln -s ~/path/to/dot314-agent/skills/* ~/.pi/agent/skills/
+```
 
 Pi scans `~/.pi/agent/extensions/`, `skills/`, and `prompts/` for resources.
 
 ## Extensions
-
-- ● → new
-- ◐ → from pi community, modified
-- ○ → from pi community, unmodified
 
 See [extensions/README.md](extensions/README.md) for descriptions
 
@@ -71,6 +133,8 @@ See [extensions/README.md](extensions/README.md) for descriptions
 
 See [skills/README.md](skills/README.md)
 
+Note: to keep the Pi package lightweight on dependencies, its export includes only `repoprompt-tool-guidance-refresh/` (see above). The rest are in this repo for local use.
+
 - ● `repoprompt-tool-guidance-refresh/`
 - ◐ `text-search/`
 - ◐ `dev-browser/`
@@ -81,6 +145,8 @@ See [skills/README.md](skills/README.md)
 ## Prompts
 
 See [prompts/README.md](prompts/README.md)
+
+Note: prompts are not exported as part of the Pi package.
 
 ### /command prompts
 
