@@ -6,7 +6,7 @@
  *
  * Features:
  * - /notify command to configure (or quick: /notify on|off|popup|pushover|<seconds>|<sound>|volume)
- * - Configurable hotkey (default Ctrl+N) to toggle on/off
+ * - Configurable hotkey (default Alt+N) to toggle on/off
  * - Only notifies if agent turn took >= minDurationSeconds
  * - Configurable sounds: system sounds, custom paths, silent, or random
  * - "silent" reserved alias: no sound plays (popup only if enabled)
@@ -23,7 +23,7 @@
  * - "timeScaled": Linear interpolation from volume.min (at threshold) to volume.max (at 4× threshold)
  *
  * Usage:
- * - Ctrl+N (or configured hotkey) to toggle notifications on/off
+ * - Alt+N (or configured hotkey) to toggle notifications on/off
  * - /notify - open configuration menu
  * - /notify on|off - toggle directly
  * - /notify popup - toggle popup on/off
@@ -48,7 +48,7 @@ import { Key, type KeyId } from "@mariozechner/pi-tui";
 
 // Configurable hotkey - change this to your preference
 // Examples: Key.ctrl("n"), Key.alt("n"), Key.ctrlShift("n")
-const TOGGLE_HOTKEY: KeyId = Key.ctrl("n");
+const TOGGLE_HOTKEY: KeyId = Key.alt("n");
 
 // =============================================================================
 // Types

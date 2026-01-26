@@ -669,7 +669,7 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerShortcut("ctrl+r", {
+	pi.registerShortcut("alt+r", {
 		description: "Speed read last assistant message",
 		handler: async (ctx) => {
 			// Trigger the command with -l flag
