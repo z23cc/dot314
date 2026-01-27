@@ -38,15 +38,16 @@ const KIMI_FOR_CODING_MODEL: ProviderModelConfig = {
 
 export default function (pi: ExtensionAPI) {
 	// Anthropic-compatible (Claude Code style)
-	// Environment variables from Kimi docs:
-	//   ANTHROPIC_BASE_URL=https://api.kimi.com/coding/
-	//   ANTHROPIC_API_KEY=sk-kimi-...
+	// Kimi docs for Claude Code use Anthropic-named env vars, but those can
+	// conflict with other Anthropic tooling that also reads ANTHROPIC_*.
+	//
+	// Prefer KIMI_* (provider-specific), fall back to ANTHROPIC_* for compatibility.
 	const anthropicBaseUrl = ensureTrailingSlash(
-		getFirstEnvValue(["ANTHROPIC_BASE_URL", "KIMI_ANTHROPIC_BASE_URL"]) ?? DEFAULT_KIMI_ANTHROPIC_BASE_URL,
+		getFirstEnvValue(["KIMI_ANTHROPIC_BASE_URL", "KIMI_BASE_URL", "ANTHROPIC_BASE_URL"]) ??
+			DEFAULT_KIMI_ANTHROPIC_BASE_URL,
 	);
 
-	// Prefer ANTHROPIC_API_KEY (matches Kimi docs), but allow KIMI_API_KEY as a convenience
-	const anthropicApiKey = getFirstEnvValue(["ANTHROPIC_API_KEY", "KIMI_API_KEY"]);
+	const anthropicApiKey = getFirstEnvValue(["KIMI_API_KEY", "ANTHROPIC_API_KEY"]);
 
 	pi.registerProvider("kimi", {
 		baseUrl: anthropicBaseUrl,
