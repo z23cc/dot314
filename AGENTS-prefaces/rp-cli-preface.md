@@ -33,6 +33,8 @@ Integration layers:
 3. `rp_bind(windowId, tab)` (usually `"Compose"`)
 4. Then use `tree/search/read/select/context/structure/...`
 
+**Mandatory routing check:** Do not infer availability of any repo of interest from workspace/window titles; workspaces may have more roots available than the title implies. Before any repo-scoped work, confirm the target repo/root is (or isn’t) present by checking workspace roots (e.g. `tree`). If it’s not confirmed, pause and resolve routing (bind the right window/tab or open/create the repo workspace).
+
 Until bound, only run safe bootstrap commands: `windows`, `workspace list`, `workspace tabs`, `help`, `refresh`, or `workspace switch ... --new-window`.
 
 If output looks wrong (0 matches / wrong files / empty results), check routing first (window/tab/workspace roots).

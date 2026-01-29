@@ -15,6 +15,8 @@ RepoPrompt (macOS app) organizes state as:
 
 MCP tools operate directly against this state. Use `select_window window_id=N` to bind to a specific window, then `manage_workspaces action="select_tab" tab="..."` to pin to a compose tab.
 
+**Mandatory routing check:** Do not infer availability of any repo of interest from workspace/window titles; workspaces may have more roots available than the title implies. Before any repo-scoped work, confirm the target repo/root is (or isn’t) present by checking workspace roots (e.g. `get_file_tree`). If it’s not confirmed, pause and resolve routing (bind the right window/tab or open the repo).
+
 ---
 
 ## Why RepoPrompt Tools Are Default
