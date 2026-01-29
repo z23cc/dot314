@@ -59,7 +59,6 @@ This repo contains more resources than the package exports. When installed as a 
 **Extensions**
 - ● `ephemeral-mode.ts`
 - ◐ `guardrails/`
-- ● `kimi-provider/`
 - ● `md.ts`
 - ● `model-sysprompt-appendix/`
 - ● `notify/`
@@ -112,7 +111,6 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ◐ `guardrails/`
 - ○ `inline-bash.ts`
 - ○ `interactive-shell.ts`
-- ● `kimi-provider/`
 - ○ `mac-system-theme.ts`
 - ● `md.ts`
 - ● `model-sysprompt-appendix/`
