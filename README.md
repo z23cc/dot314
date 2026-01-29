@@ -104,6 +104,7 @@ Pi scans `~/.pi/agent/extensions/`, `skills/`, and `prompts/` for resources.
 
 See [extensions/README.md](extensions/README.md) for descriptions
 
+- ◐ `branch-term.ts`
 - ○ `code-actions/`
 - ● `commands.ts`
 - ○ `confirm-destructive.ts`

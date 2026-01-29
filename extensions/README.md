@@ -76,6 +76,16 @@
   <img width="270" alt="notify menu" src="https://github.com/user-attachments/assets/474af589-ee3e-423d-a800-4331f2517676" />
 </p>
 
+- ◐ [`branch-term.ts`](branch-term.ts) (upstream: [davidgasquez/dotfiles](https://github.com/davidgasquez/dotfiles/blob/main/agents/pi/extensions/branch-term.ts))
+  - `/branch` forks the current session into a new terminal, running `pi --session <fork>`
+  - This version extends the upstream original's such that, beyond the existing `--branch-terminal` override and tmux behavior, it can open the branched session in a new tab in macOS iTerm2/iTerm (first) or Terminal.app (fallback), and only then fall back to opening a new Alacritty window
+  - Terminal selection order:
+    - `--branch-terminal "..."` (override, supports `{session}` placeholder)
+    - `tmux new-window` (when `TMUX` is set)
+    - macOS: iTerm2/iTerm (new tab)
+    - macOS: Terminal.app (new tab)
+    - fallback: Alacritty (new window)
+
 - ◐ [`plan-mode.ts`](plan-mode.ts) (upstream: [pi-mono examples](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent/examples/extensions))
   - `/plan` (and `ctrl+alt+p`) toggles a read-only sandbox
   - No todo extraction or step execution prompting (planning stays on the user)
