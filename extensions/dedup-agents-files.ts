@@ -77,11 +77,6 @@ export default function dedupAgentsFilesExtension(pi: ExtensionAPI) {
 
         const newSystemPrompt = beforeContext + newContextSection;
 
-        ctx.ui.notify(
-            `Removed ${removedCount} duplicate AGENTS.md file(s) (symlink dedup)`,
-            "info"
-        );
-
         return { systemPrompt: newSystemPrompt };
     });
 }
