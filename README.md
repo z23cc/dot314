@@ -59,7 +59,7 @@ This repo contains more resources than the package exports. When installed as a 
 **Extensions**
 - ● `editor-enhancements/`
 - ● `ephemeral-mode.ts`
-- ◐ `file-based-compaction/`
+- ◐ `agentic-compaction/`
 - ◐ `guardrails/`
 - ● `md.ts`
 - ● `model-sysprompt-appendix/`
@@ -113,7 +113,7 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ● `dedup-agents-files.ts`
 - ◐ `editor-enhancements/`
 - ● `ephemeral-mode.ts`
-- ◐ `file-based-compaction/`
+- ◐ `agentic-compaction/`
 - ◐ `guardrails/`
 - ○ `inline-bash.ts`
 - ○ `interactive-shell.ts`

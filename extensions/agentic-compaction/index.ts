@@ -351,7 +351,7 @@ function detectFileOpsFromConversation(llmMessages: any[]): DetectedFileOps {
 // DEBUG INFRASTRUCTURE
 // ============================================================================
 
-const COMPACTIONS_DIR = path.join(homedir(), ".pi", "agent", "extensions", "file-based-compaction", "compactions");
+const COMPACTIONS_DIR = path.join(homedir(), ".pi", "agent", "extensions", "agentic-compaction", "compactions");
 
 function debugLog(message: string): void {
     if (!CONFIG.debugCompactions) return;

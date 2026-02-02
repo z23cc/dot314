@@ -36,7 +36,7 @@ This version adds:
 
 ### Local development / copied extension
 
-If you copy this extension into `~/.pi/agent/extensions/file-based-compaction/`, Pi will load `index.ts` directly but **won't automatically install npm dependencies**.
+If you copy this extension into `~/.pi/agent/extensions/agentic-compaction/`, Pi will load `index.ts` directly but **won't automatically install npm dependencies**.
 
 From that folder, run:
 
@@ -143,7 +143,7 @@ Configurable parameters:
 - `compactionModels`: models to try in order (first one with an API key wins)
 - `thinkingLevel`: default reasoning/thinking level for the summarizer model (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`)
 - `compactionModels[].thinkingLevel`: optional per-model override (same values)
-- `debugCompactions`: write debug artifacts to `~/.pi/agent/extensions/file-based-compaction/compactions/`
+- `debugCompactions`: write debug artifacts to `~/.pi/agent/extensions/agentic-compaction/compactions/`
 - `toolResultMaxChars`: truncate tool output to keep the summarizer context small
 - `toolCallPreviewChars`: how many characters of the command to show in UI notifications
 - `toolCallConcurrency`: max number of concurrent summarizer shell tool calls per turn

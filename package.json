@@ -12,7 +12,7 @@
       "./extensions/brave-search/index.ts",
       "./extensions/editor-enhancements/index.ts",
       "./extensions/ephemeral-mode.ts",
-      "./extensions/file-based-compaction/index.ts",
+      "./extensions/agentic-compaction/index.ts",
       "./extensions/guardrails/index.ts",
       "./extensions/md.ts",
       "./extensions/model-sysprompt-appendix/index.ts",

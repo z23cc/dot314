@@ -74,7 +74,7 @@ skills/repoprompt-tool-guidance-refresh/rp-tool-defs/.baseline_version
 
 # Outputs from extensions
 extensions/brave-search/.clips/
-extensions/file-based-compactions/compactions/
+extensions/agentic-compactions/compactions/
 
 # .pi folders
 **/.pi/
