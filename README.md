@@ -110,6 +110,7 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ● `commands.ts`
 - ○ `confirm-destructive.ts`
 - ● `dedup-agents-files.ts`
+- ◐ `editor-enhancements/`
 - ● `ephemeral-mode.ts`
 - ◐ `guardrails/`
 - ○ `inline-bash.ts`
@@ -123,7 +124,6 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ◐ `plan-mode.ts`
 - ○ `preset.ts`
 - ○ `questionnaire.ts`
-- ◐ `raw-paste.ts`
 - ● `repoprompt-cli.ts`
 - ● `repoprompt-mcp/`
 - ○ `review.ts`

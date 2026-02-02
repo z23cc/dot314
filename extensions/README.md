@@ -107,9 +107,19 @@
   - Restricts tools, blocks destructive shell commands, and blocks RepoPrompt write operations
     - Covers `rp_exec`, `rp-cli -e ...`, and `rp` (repoprompt-mcp)
 
-- ◐ [`raw-paste.ts`](raw-paste.ts) (upstream: [tmustier/pi-extensions](https://github.com/tmustier/pi-extensions))
-  - `/paste` arms raw paste for the next paste operation
-  - This version adds `alt+v` performing both arm + paste directly from the clipboard, preserving newlines (bracketed paste handling)
+- ● [`editor-enhancements/`](editor-enhancements/)
+  - Composite editor extension that makes multiple `setEditorComponent()`-based UX tweaks simultaneously compatible
+  - Includes a merged, single-editor implementation of:
+    - ◐ `file-picker` (upstream: [laulauland/dotfiles](https://github.com/laulauland/dotfiles))
+       — type `@` to open an overlay file browser and insert `@path` refs
+       - This version adds zsh support and enables compatibility with the other two
+    - ◐ `shell-completions` (upstream: [laulauland/dotfiles](https://github.com/laulauland/dotfiles))
+      — native shell completions in `!`/`!!` bash mode
+      - This version adds zsh support and enables compatibility with the other two
+    - ◐ `raw-paste` (upstream: [tmustier/pi-extensions](https://github.com/tmustier/pi-extensions))
+      - `/paste` arms raw paste for the next paste operation
+      - This version adds `alt+v` performing both arm + paste directly from the clipboard, preserving newlines and bypassing Pi’s large-paste markers (e.g. `[paste #3 +122 lines]`)
+  - When enabled, disable the standalone `shell-completions/`, `file-picker.ts`, and `raw-paste.ts` extensions to avoid editor-component conflicts
 
 - ◐ [`oracle.ts`](oracle.ts) (upstream: [hjanuschka/shitty-extensions](https://github.com/hjanuschka/shitty-extensions/tree/main))
   - `/oracle` queries an alternate model for a second opinion, with optional file inclusion (`-f`) and injection into the current conversation
