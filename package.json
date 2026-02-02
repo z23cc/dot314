@@ -10,6 +10,7 @@
   "pi": {
     "extensions": [
       "./extensions/brave-search/index.ts",
+      "./extensions/editor-enhancements/index.ts",
       "./extensions/ephemeral-mode.ts",
       "./extensions/guardrails/index.ts",
       "./extensions/md.ts",
@@ -17,7 +18,6 @@
       "./extensions/notify/index.ts",
       "./extensions/oracle.ts",
       "./extensions/plan-mode.ts",
-      "./extensions/raw-paste.ts",
       "./extensions/repoprompt-cli.ts",
       "./extensions/repoprompt-mcp/src/index.ts",
       "./extensions/rp-native-tools-lock/index.ts",

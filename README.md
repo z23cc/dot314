@@ -57,6 +57,7 @@ pi install npm:pi-repoprompt-cli
 This repo contains more resources than the package exports. When installed as a Pi package, Pi will discover only the resources listed in [`package.json`](package.json):
 
 **Extensions**
+- ● `editor-enhancements/`
 - ● `ephemeral-mode.ts`
 - ◐ `guardrails/`
 - ● `md.ts`
@@ -64,7 +65,6 @@ This repo contains more resources than the package exports. When installed as a 
 - ● `notify/`
 - ◐ `oracle.ts`
 - ◐ `plan-mode.ts`
-- ◐ `raw-paste.ts`
 - ● `repoprompt-cli.ts`
 - ● `repoprompt-mcp/`
 - ● `rp-native-tools-lock/`
