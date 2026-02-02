@@ -1,5 +1,7 @@
 # Extensions
 
+## ⚠️ WARNING: THESE EXTENSIONS NOT YET COMPATIBLE WITH PI v0.51.0 ⚠️
+
 ## New or locally modified
 
 - ● [`repoprompt-mcp/`](repoprompt-mcp/) ([README](./repoprompt-mcp/README.md))
