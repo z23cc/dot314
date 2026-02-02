@@ -1,5 +1,5 @@
 import { stat } from "node:fs/promises";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 /**
@@ -18,11 +18,26 @@ const ENV_FILE_PATTERN = /\.env$/i;
 const ALLOWED_ENV_SUFFIXES =
   /\.(example|sample|test)\.env$|\.env\.(example|sample|test)$/i;
 
-// Directory patterns (always protected, no exceptions)
-const PROTECTED_DIR_PATTERNS = [
-  /(?:^|[/\\])\.git(?:[/\\]|$)/,         // .git directory
-  /(?:^|[/\\])node_modules(?:[/\\]|$)/,  // node_modules directory
+// Directory patterns
+const GIT_DIR_PATTERN = /(?:^|[/\\])\.git(?:[/\\]|$)/;
+const NODE_MODULES_DIR_PATTERN = /(?:^|[/\\])node_modules(?:[/\\]|$)/;
+
+// Allow-list for node_modules
+//
+// We normally block node_modules access to avoid accidental edits to dependency code.
+// However, pi itself may be installed via Homebrew into a global node_modules location,
+// and we want to allow reading its bundled docs/examples.
+const ALLOWED_NODE_MODULES_PREFIXES = [
+  resolve("/opt/homebrew/lib/node_modules/@mariozechner/pi-coding-agent"),
 ];
+
+function isAllowedNodeModulesPath(filePath: string): boolean {
+  const resolvedPath = resolve(filePath);
+
+  return ALLOWED_NODE_MODULES_PREFIXES.some(
+    (prefix) => resolvedPath === prefix || resolvedPath.startsWith(`${prefix}${sep}`),
+  );
+}
 
 async function fileExists(filePath: string): Promise<boolean> {
   try {
@@ -33,8 +48,28 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-function isProtectedDirectory(filePath: string): boolean {
-  return PROTECTED_DIR_PATTERNS.some((pattern) => pattern.test(filePath));
+type ProtectionOptions = {
+  allowGlobalPiInstallNodeModules?: boolean;
+};
+
+function isProtectedDirectory(filePath: string, options?: ProtectionOptions): boolean {
+  const resolvedPath = resolve(filePath);
+
+  // Still protect .git everywhere (no exceptions)
+  if (GIT_DIR_PATTERN.test(resolvedPath)) {
+    return true;
+  }
+
+  if (NODE_MODULES_DIR_PATTERN.test(resolvedPath)) {
+    const allowNodeModules = Boolean(options?.allowGlobalPiInstallNodeModules);
+    if (allowNodeModules && isAllowedNodeModulesPath(resolvedPath)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  return false;
 }
 
 async function isProtectedEnvFile(filePath: string): Promise<boolean> {
@@ -50,9 +85,9 @@ async function isProtectedEnvFile(filePath: string): Promise<boolean> {
   return fileExists(filePath);
 }
 
-async function isProtectedPath(filePath: string): Promise<boolean> {
+async function isProtectedPath(filePath: string, options?: ProtectionOptions): Promise<boolean> {
   // Check protected directories first (synchronous, no file check needed)
-  if (isProtectedDirectory(filePath)) {
+  if (isProtectedDirectory(filePath, options)) {
     return true;
   }
 
@@ -62,10 +97,10 @@ async function isProtectedPath(filePath: string): Promise<boolean> {
 
 function getProtectionReason(filePath: string): string {
   if (isProtectedDirectory(filePath)) {
-    if (/\.git(?:[/\\]|$)/.test(filePath)) {
+    if (GIT_DIR_PATTERN.test(filePath)) {
       return `Accessing ${filePath} is not allowed. The .git directory is protected to prevent repository corruption.`;
     }
-    if (/node_modules(?:[/\\]|$)/.test(filePath)) {
+    if (NODE_MODULES_DIR_PATTERN.test(filePath)) {
       return `Accessing ${filePath} is not allowed. The node_modules directory is protected. Use package manager commands to manage dependencies.`;
     }
     return `Path "${filePath}" is protected.`;
@@ -94,14 +129,23 @@ interface ToolProtectionRule {
 // Protection rules
 // -------------------------------------------------------------------
 
+const extractPathTargets = (input: Record<string, unknown>): string[] => {
+  const path = String(input.file_path ?? input.path ?? "");
+  return path ? [path] : [];
+};
+
 const protectionRules: ToolProtectionRule[] = [
   {
-    // Tools that use path/file_path input parameter
-    tools: ["read", "write", "edit", "grep", "find", "ls"],
-    extractTargets: (input) => {
-      const path = String(input.file_path ?? input.path ?? "");
-      return path ? [path] : [];
-    },
+    // Read-like tools
+    tools: ["read", "grep", "find", "ls"],
+    extractTargets: extractPathTargets,
+    shouldBlock: (target) => isProtectedPath(target, { allowGlobalPiInstallNodeModules: true }),
+    blockMessage: getProtectionReason,
+  },
+  {
+    // Write tools stay strict (no node_modules allow-list)
+    tools: ["write", "edit"],
+    extractTargets: extractPathTargets,
     shouldBlock: isProtectedPath,
     blockMessage: getProtectionReason,
   },

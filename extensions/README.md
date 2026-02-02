@@ -148,7 +148,6 @@ Upstream: [pi-mono examples](https://github.com/badlogic/pi-mono/tree/main/packa
 - ○ `interactive-shell.ts`
 - ○ `mac-system-theme.ts`
 - ○ `preset.ts`
-- ○ `protected-paths.ts`
 - ○ `questionnaire.ts` — multi-question input with tab bar navigation between questions
 - ○ `review.ts`
 - ○ `send-user-message.ts`

@@ -122,7 +122,6 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ○ `pi-prompt-template-model/`
 - ◐ `plan-mode.ts`
 - ○ `preset.ts`
-- ○ `protected-paths.ts`
 - ○ `questionnaire.ts`
 - ◐ `raw-paste.ts`
 - ● `repoprompt-cli.ts`
