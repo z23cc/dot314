@@ -60,7 +60,7 @@ const DEFAULT_COUNTRY = "US";
 
 const MAX_CONTENT_CHARS = 5000;
 const MAX_SAVED_CONTENT_CHARS = 250_000;
-const MAX_FETCH_CONTENT_RESULTS = 3;
+const MAX_FETCH_CONTENT_RESULTS = 5;
 
 // Optional behavior: allow the agent to request a search via a marker in its own output
 const ENABLE_WS_MARKER =
@@ -151,15 +151,28 @@ function writeClipToFile(params: {
     return filePath;
 }
 
-function getBraveApiKey(): string {
-    const key = process.env.BRAVE_API_KEY;
-    if (!key) {
+function getBraveApiKeys(): string[] {
+    const freeKey = process.env.BRAVE_API_KEY;
+    const paidKey = process.env.BRAVE_API_KEY_PAID;
+
+    const keys: string[] = [];
+    if (freeKey) keys.push(freeKey);
+    if (paidKey && paidKey !== freeKey) keys.push(paidKey);
+
+    if (keys.length === 0) {
         throw new Error(
-            "No Brave Search API key found. Set BRAVE_API_KEY. Get a key at https://api-dashboard.search.brave.com/app/keys",
+            "No Brave Search API key found. Set BRAVE_API_KEY (free tier) or BRAVE_API_KEY_PAID. Get a key at https://api-dashboard.search.brave.com/app/plans",
         );
     }
 
-    return key;
+    return keys;
+}
+
+function isQuotaOrAuthError(status: number): boolean {
+    // 429 = rate limited / quota exceeded
+    // 401 = unauthorized (invalid key)
+    // 403 = forbidden (possibly quota or access issue)
+    return status === 429 || status === 401 || status === 403;
 }
 
 function getBraveGroundingApiKey(): string {
@@ -529,7 +542,7 @@ function parseWsArgs(args: string): {
 
     return {
         query: normalizeBraveQuery(queryParts.join(" ")),
-        count: clampNumber(count, 1, 10),
+        count: clampNumber(count, 1, 20),
         country,
         freshness,
         fetchContent,
@@ -563,7 +576,7 @@ async function fetchBraveResults(params: {
     saveToFiles: boolean;
     signal: AbortSignal;
 }): Promise<BraveResult[]> {
-    const apiKey = getBraveApiKey();
+    const apiKeys = getBraveApiKeys();
     const normalizedQuery = normalizeBraveQuery(params.query);
 
     const searchParams = new URLSearchParams({
@@ -574,21 +587,40 @@ async function fetchBraveResults(params: {
 
     if (params.freshness) searchParams.append("freshness", params.freshness);
 
-    const response = await fetch(`https://api.search.brave.com/res/v1/web/search?${searchParams.toString()}`, {
-        headers: {
-            Accept: "application/json",
-            "Accept-Encoding": "gzip",
-            "X-Subscription-Token": apiKey,
-        },
-        signal: params.signal,
-    });
+    const url = `https://api.search.brave.com/res/v1/web/search?${searchParams.toString()}`;
 
-    if (!response.ok) {
+    let lastError: Error | undefined;
+    let data: any;
+
+    for (const apiKey of apiKeys) {
+        const response = await fetch(url, {
+            headers: {
+                Accept: "application/json",
+                "Accept-Encoding": "gzip",
+                "X-Subscription-Token": apiKey,
+            },
+            signal: params.signal,
+        });
+
+        if (response.ok) {
+            data = await response.json();
+            break;
+        }
+
         const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${response.statusText}\n${errorText}`);
+        lastError = new Error(`HTTP ${response.status}: ${response.statusText}\n${errorText}`);
+
+        // If quota/auth error and we have more keys to try, continue
+        if (isQuotaOrAuthError(response.status) && apiKeys.indexOf(apiKey) < apiKeys.length - 1) {
+            continue;
+        }
+
+        throw lastError;
     }
 
-    const data = (await response.json()) as any;
+    if (!data) {
+        throw lastError ?? new Error("No API keys available");
+    }
     const results: BraveResult[] = [];
 
     const pushResults = (items: any[], mapUrl: (r: any) => string) => {
@@ -822,17 +854,17 @@ export default function (pi: ExtensionAPI) {
     pi.registerTool({
         name: "brave_search",
         label: "Brave Search",
-        description: "Web search via Brave Search API. Returns compact results with citations.",
+        description: "Web search via Brave Search API. Returns snippets; use fetchContent=true for full markdown saved to file.",
         parameters: Type.Object({
             query: Type.String({ description: "Search query" }),
-            count: Type.Optional(Type.Integer({ description: "Number of results (1-10)", minimum: 1, maximum: 10 })),
+            count: Type.Optional(Type.Integer({ description: "Number of results (1-20)", minimum: 1, maximum: 20 })),
             country: Type.Optional(Type.String({ description: "Country code (default US)" })),
             freshness: Type.Optional(
                 Type.String({
                     description: "Optional time filter: pd (day), pw (week), pm (month), py (year)",
                 }),
             ),
-            fetchContent: Type.Optional(Type.Boolean({ description: "If true, fetch and extract readable page content (slower)" })),
+            fetchContent: Type.Optional(Type.Boolean({ description: "Fetch full page as markdown, save to disk. Output includes 'Saved: <path>' — read that file. URL as query fetches directly (no search)." })),
             format: Type.Optional(
                 Type.String({
                     description: "Response format: one_line | short | raw_json",
@@ -843,7 +875,7 @@ export default function (pi: ExtensionAPI) {
         async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
             const query = normalizeBraveQuery(String((params as any).query ?? ""));
             const fetchContent = Boolean((params as any).fetchContent ?? false);
-            const count = clampNumber(Number((params as any).count ?? 3), 1, 10);
+            const count = clampNumber(Number((params as any).count ?? 3), 1, 20);
             const effectiveCount = getEffectiveCount(count, fetchContent);
 
             const country = normalizeCountry((params as any).country);

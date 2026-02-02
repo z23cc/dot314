@@ -32,8 +32,18 @@ Add to `~/.pi/agent/settings.json` (or replace an existing unfiltered `git:githu
 
 ## Setup
 
+**Brave Search API keys:**
+
 - Set `BRAVE_API_KEY` (Brave Search API)
-- Optional: set `BRAVE_API_KEY_AI_GROUNDING` (Brave AI Grounding)
+  - Get a key: https://api-dashboard.search.brave.com/app/keys
+  - This is assumed to be a free-tier key
+
+- Optional: set `BRAVE_API_KEY_PAID` for automatic fallback
+  - If `BRAVE_API_KEY` fails due to quota limits (HTTP 429) or auth errors, the extension will automatically retry with `BRAVE_API_KEY_PAID`
+
+**Brave AI Grounding (optional):**
+
+- Set `BRAVE_API_KEY_AI_GROUNDING` (Brave AI Grounding)
 
 ## Usage
 

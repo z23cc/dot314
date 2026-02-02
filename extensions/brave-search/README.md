@@ -10,10 +10,19 @@ Token-efficient Brave web search as a Pi extension, with optional content extrac
 
 ## Setup
 
+**Brave Search API keys:**
+
 - Set `BRAVE_API_KEY` in your environment (Brave Search `/web/search`)
   - Get a key: https://api-dashboard.search.brave.com/app/keys
+  - This is assumed to be a free-tier key
 
-- Optional: set `BRAVE_API_KEY_AI_GROUNDING` (Brave AI Grounding `/chat/completions`)
+- Optional: set `BRAVE_API_KEY_PAID` for automatic fallback
+  - If `BRAVE_API_KEY` fails due to quota limits (HTTP 429) or auth errors (401/403), the extension will automatically retry with `BRAVE_API_KEY_PAID`
+  - Useful if you have both free and paid tier keys and want to maximize free tier usage while having paid as a backup
+
+**Brave AI Grounding (optional):**
+
+- Set `BRAVE_API_KEY_AI_GROUNDING` (Brave AI Grounding `/chat/completions`)
   - Used by the `brave_grounding` tool
 
 - Install dependencies for this extension:
