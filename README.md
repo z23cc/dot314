@@ -79,9 +79,6 @@ This repo contains more resources than the package exports. When installed as a 
 - ◐ `usage-bar.ts`
 - ● `vog/`
 
-**Skills**
-- ● `repoprompt-tool-guidance-refresh/`
-
 **Themes**
 - ● `themes/violet-dawn.json`
 - ● `themes/violet-dusk.json`
@@ -152,9 +149,9 @@ See [extensions/README.md](extensions/README.md) for descriptions
 
 See [skills/README.md](skills/README.md)
 
-Note: to keep the Pi package lightweight on dependencies, its export includes only `repoprompt-tool-guidance-refresh/` (see above). The rest are in this repo for local use.
+Note: the Pi package does not export any skills. The skills in this repo are intended for local/symlink workflows.
 
-- ● `repoprompt-tool-guidance-refresh/`
+- ● `repoprompt-tool-guidance-refresh/` (maintainer workflow; writes tracking files and edits docs)
 - ◐ `text-search/`
 - ◐ `dev-browser/`
 - ◐ `xcodebuildmcp/`

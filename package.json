@@ -27,9 +27,7 @@
       "./extensions/usage-bar.ts",
       "./extensions/vog/index.ts"
     ],
-    "skills": [
-      "./skills/repoprompt-tool-guidance-refresh"
-    ],
+    "skills": [],
     "prompts": [],
     "themes": [
       "./themes"
