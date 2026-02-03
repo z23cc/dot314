@@ -42,6 +42,10 @@ pi install -l git:github.com/w-winter/dot314
 
 After installing, use `pi config` to enable/disable individual extensions, skills, and themes.
 
+Notes:
+- `pi install ...` runs `npm install` in the package root automatically
+- Some extensions store optional per-user config under `~/.pi/agent/extensions/<extension-name>/...` (e.g. `notify`, `sandbox`, `tools`, `rp-native-tools-lock`). These files are not part of the package install and are created on-demand or are optional
+
 ### Install individual extensions from npm
 
 If you only want one extension, you can install the per-extension npm packages (see `packages/` in this repo).
@@ -57,6 +61,7 @@ pi install npm:pi-repoprompt-cli
 This repo contains more resources than the package exports. When installed as a Pi package, Pi will discover only the resources listed in [`package.json`](package.json):
 
 **Extensions**
+- ● `brave-search/`  (requires `BRAVE_API_KEY`)
 - ● `editor-enhancements/`
 - ● `ephemeral-mode.ts`
 - ◐ `agentic-compaction/`

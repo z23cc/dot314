@@ -43,8 +43,6 @@ Location:
 
 - `~/.pi/agent/extensions/notify/notify.json`
 
-(If the config file is missing, the extension will error with instructions.)
-
 ## Usage
 
 - Command: `/notify`

@@ -10,6 +10,8 @@
  * Modes (user-facing):
  * - off     : no enforcement
  * - auto    : enforce via rp if available; else rp_exec if available; else off
+ *            (auto mode only kicks in if the user has enabled `rp`/`rp_exec` in their active tools)
+ *            Tip: use `/tools` to enable `rp` (and then toggle this lock with Alt+L or `/rp-tools-lock`)
  *
  * Advanced modes (set via config file):
  * - rp-mcp  : enforce when the `rp` tool exists

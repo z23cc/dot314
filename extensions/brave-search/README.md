@@ -25,7 +25,9 @@ Token-efficient Brave web search as a Pi extension, with optional content extrac
 - Set `BRAVE_API_KEY_AI_GROUNDING` (Brave AI Grounding `/chat/completions`)
   - Used by the `brave_grounding` tool
 
-- Install dependencies for this extension:
+- Install dependencies
+  - If you installed this extension via `pi install ...` and the package has a root `package.json`, pi will run `npm install` automatically
+  - If you installed by copying the folder manually, run:
 
 ```bash
 cd ~/.pi/agent/extensions/brave-search

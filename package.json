@@ -39,8 +39,12 @@
     "@anthropic-ai/sandbox-runtime": "^0.0.26",
     "@mariozechner/clipboard": "*",
     "@modelcontextprotocol/sdk": "^1.12.1",
+    "@mozilla/readability": "^0.5.0",
     "@sinclair/typebox": "^0.34.33",
     "diff": "^7.0.0",
-    "just-bash": "^1.5.4"
+    "jsdom": "^26.0.0",
+    "just-bash": "^1.5.4",
+    "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2"
   }
 }

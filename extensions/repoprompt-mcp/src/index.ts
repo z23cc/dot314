@@ -256,7 +256,7 @@ Mode priority: call > describe > search > windows > bind > status`,
 
       // Only modes that need MCP require a connection
       if (params.call || params.describe || params.search || params.windows || params.bind) {
-        await ensureConnected();
+        await ensureConnected(_ctx as ExtensionContext | undefined);
       }
 
       // Mode resolution: call > describe > search > windows > bind > status
@@ -374,15 +374,28 @@ Mode priority: call > describe > search > windows > bind > status`,
   // Helper Functions
   // ───────────────────────────────────────────────────────────────────────────
   
-  async function ensureConnected(): Promise<void> {
+  async function ensureConnected(ctx?: ExtensionContext): Promise<void> {
     if (initPromise) {
       await initPromise;
     }
-    
+
     const client = getRpClient();
-    if (!client.isConnected) {
-      throw new Error("Not connected to RepoPrompt. Run /rp reconnect");
+    if (client.isConnected) {
+      return;
     }
+
+    // Lazy reconnect: allow the user to install/configure RepoPrompt after Pi starts
+    // and have `rp(...)` work without requiring a restart.
+    config = loadConfig();
+
+    const server = getServerCommand(config);
+    if (!server) {
+      throw new Error(
+        "RepoPrompt MCP server not found. Install RepoPrompt / rp-mcp-server, or configure ~/.pi/agent/extensions/repoprompt-mcp.json (or ~/.pi/agent/mcp.json)"
+      );
+    }
+
+    await client.connect(server.command, server.args, config.env);
   }
 
   function parseNumber(value: unknown): number | undefined {
@@ -545,11 +558,17 @@ Mode priority: call > describe > search > windows > bind > status`,
     const client = getRpClient();
     const binding = getBinding();
     
+    const server = getServerCommand(config);
+
     let text = `RepoPrompt: ${client.status}\n`;
     if (client.error) {
       text += `Error: ${client.error}\n`;
     }
     text += `Tools: ${client.tools.length}\n`;
+    if (!server) {
+      text += `Server: (not configured / not auto-detected)\n`;
+      text += `Hint: configure ~/.pi/agent/extensions/repoprompt-mcp.json or ~/.pi/agent/mcp.json\n`;
+    }
     
     if (binding) {
       text += `\nBound to window ${binding.windowId}`;
@@ -872,11 +891,20 @@ async function initializeExtension(
   
   // Get server command
   const server = getServerCommand(config);
-  
+  if (!server) {
+    if (ctx.hasUI) {
+      ctx.ui.notify(
+        "RepoPrompt MCP server not found. Install RepoPrompt / rp-mcp-server, or configure ~/.pi/agent/extensions/repoprompt-mcp.json (or ~/.pi/agent/mcp.json)",
+        "warning"
+      );
+    }
+    return;
+  }
+
   // Connect to RepoPrompt
   const client = getRpClient();
   await client.connect(server.command, server.args, config.env);
-  
+
   // Notify connection
   if (ctx.hasUI) {
     ctx.ui.notify(`RepoPrompt: connected (${client.tools.length} tools)`, "info");

@@ -222,9 +222,13 @@ function maybeWrapServerCommand(
 }
 
 /**
- * Get the server command and args, or throw if not found
+ * Get the server command and args, or return null if not found
+ *
+ * We avoid throwing on startup because a missing server is a common first-run condition
+ * (users may not have installed RepoPrompt / rp-mcp-server yet). Instead we surface this
+ * as a non-fatal warning and only error when a user actually tries to use rp features
  */
-export function getServerCommand(config: RpConfig): { command: string; args: string[] } {
+export function getServerCommand(config: RpConfig): { command: string; args: string[] } | null {
   if (config.command) {
     return maybeWrapServerCommand(config, {
       command: config.command,
@@ -232,8 +236,5 @@ export function getServerCommand(config: RpConfig): { command: string; args: str
     });
   }
 
-  throw new Error(
-    "RepoPrompt MCP server not found. Please ensure rp-mcp-server is installed, " +
-    "or add RepoPrompt to your ~/.pi/agent/mcp.json"
-  );
+  return null;
 }

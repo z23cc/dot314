@@ -54,7 +54,7 @@ This skill has two invocation modes depending on where you are in the upgrade cy
 4. **(Optional) Changelog context**: Ask the user:
    > Paste release notes for v{NEW_VERSION} (or press Enter to skip):
 
-   If provided, write to `~/.pi/agent/skills/repoprompt-tool-guidance-refresh/changelog-latest.md`. If skipped, proceed using diffs as ground truth.
+   If provided, write to `~/.pi/agent/skills/repoprompt-tool-guidance-refresh/references/changelog-latest.md`. If skipped, proceed using diffs as ground truth.
 
 5. **Review diffs** and identify what changed:
    - New tools

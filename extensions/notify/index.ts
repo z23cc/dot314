@@ -17,6 +17,7 @@
  * - Status indicator in footer (♫ sound, ↥ popup, ⚡︎ pushover)
  *
  * Configuration file: ~/.pi/agent/extensions/notify/notify.json
+ * - If missing, the extension will create it on first run with safe defaults
  *
  * Volume modes:
  * - "constant": Always plays at volume.max
@@ -89,39 +90,65 @@ function getConfigPath(): string {
 	return join(homedir(), ".pi", "agent", "extensions", "notify", "notify.json");
 }
 
+const DEFAULT_CONFIG: NotifyConfig = {
+	enabled: false,
+	minDurationSeconds: 10,
+	sound: "silent",
+	showPopup: false,
+	sounds: [
+		{ alias: "silent" },
+		{ alias: "random" },
+		{ alias: "Funk", path: "/System/Library/Sounds/Funk.aiff" },
+		{ alias: "Glass", path: "/System/Library/Sounds/Glass.aiff" },
+		{ alias: "Hero", path: "/System/Library/Sounds/Hero.aiff" },
+		{ alias: "Submarine", path: "/System/Library/Sounds/Submarine.aiff" },
+	],
+	volume: {
+		mode: "timeScaled",
+		max: 1.0,
+		min: 0.1,
+	},
+	pushover: {
+		enabled: false,
+		userKey: "",
+		apiToken: "",
+	},
+};
+
 function loadConfig(): NotifyConfig {
 	const configPath = getConfigPath();
 
-	if (existsSync(configPath)) {
+	if (!existsSync(configPath)) {
+		// First-run UX: create a usable default config so pi doesn't error on startup
 		try {
-			const content = readFileSync(configPath, "utf-8");
-			const parsed = JSON.parse(content);
-
-			// Apply defaults for optional sections
-			return {
-				...parsed,
-				volume: {
-					mode: "constant",
-					max: 1.0,
-					min: 0.25,
-					...parsed.volume,
-				},
-				pushover: {
-					enabled: false,
-					userKey: "",
-					apiToken: "",
-					...parsed.pushover,
-				},
-			} as NotifyConfig;
-		} catch {
-			// Fall through to error
+			saveConfig(DEFAULT_CONFIG);
+		} catch (err) {
+			console.error(`Notify extension: failed to write default config to ${configPath}: ${err}`);
 		}
+		return DEFAULT_CONFIG;
 	}
 
-	throw new Error(
-		`Notify extension: config file not found at ${configPath}. ` +
-		`Please create it with the required structure (see extension docstring).`
-	);
+	let parsed: Partial<NotifyConfig> | undefined;
+	try {
+		const content = readFileSync(configPath, "utf-8");
+		parsed = JSON.parse(content) as Partial<NotifyConfig>;
+	} catch (err) {
+		console.error(`Notify extension: failed to parse ${configPath}: ${err}`);
+		return DEFAULT_CONFIG;
+	}
+
+	return {
+		...DEFAULT_CONFIG,
+		...parsed,
+		volume: {
+			...DEFAULT_CONFIG.volume,
+			...(parsed.volume ?? {}),
+		},
+		pushover: {
+			...DEFAULT_CONFIG.pushover,
+			...(parsed.pushover ?? {}),
+		},
+	} as NotifyConfig;
 }
 
 function saveConfig(config: NotifyConfig): void {
@@ -544,7 +571,7 @@ export default function notifyExtension(pi: ExtensionAPI) {
 			const testIndex = config.volume.mode === "timeScaled" ? 8 : 7;
 			if (choice === menuItems[testIndex]) {
 				// Test at 4x threshold to demonstrate max volume
-				notify("Pi", "℟", config, config.minDurationSeconds * 4);
+				notify("𝞹", "℟", config, config.minDurationSeconds * 4);
 				return;
 			}
 		},

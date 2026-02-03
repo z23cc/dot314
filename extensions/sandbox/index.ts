@@ -34,7 +34,9 @@
  *
  * Setup:
  * 1. Copy sandbox/ directory to ~/.pi/agent/extensions/
- * 2. Run `npm install` in ~/.pi/agent/extensions/sandbox/
+ * 2. Install dependencies
+ *    - If installed via `pi install ...` from a package root containing this extension, pi will run `npm install` for you
+ *    - If you copied the folder manually, run `npm install` in ~/.pi/agent/extensions/sandbox/
  *
  * Linux also requires: bubblewrap, socat, ripgrep
  */

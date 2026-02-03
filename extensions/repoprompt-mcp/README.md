@@ -29,6 +29,7 @@ Binding is **non-invasive**: it does not change RepoPrompt’s globally active w
 ## Requirements
 
 - RepoPrompt MCP server configured and reachable (stdio transport)
+  - If the server is not configured/auto-detected, the extension will still load, but `rp(...)` will error until you configure it
 - `rp-cli` available in `PATH` is recommended (used as a fallback for window discovery)
 
 ### Compatibility notes (capability assumptions)
