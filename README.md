@@ -139,6 +139,7 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ○ `speedreading.ts`
 - ○ `status-line.ts`
 - ○ `subagent/`
+- ○ `titlebar-spinner.ts`
 - ○ `todos.ts`
 - ◐ `tools/`
 - ◐ `ultrathink.ts`

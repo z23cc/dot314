@@ -166,6 +166,7 @@ Upstream: [pi-mono examples](https://github.com/badlogic/pi-mono/tree/main/packa
 - ○ `review.ts`
 - ○ `send-user-message.ts`
 - ○ `status-line.ts`
+- ○ `titlebar-spinner.ts`
 
 Other:
 - ○ [`code-actions/`](code-actions/) (upstream: [tmustier/pi-extensions](https://github.com/tmustier/pi-extensions))
