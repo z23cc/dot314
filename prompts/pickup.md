@@ -14,7 +14,7 @@ If no handoff file was provided, list them all.  Eg:
 ```
 echo "## Available Handoffs"
 echo ""
-for file in .claude/handoffs/*.md; do
+for file in ~/.pi/agent/handoffs/*.md; do
   if [ -f "$file" ]; then
     title=$(grep -m 1 "^# " "$file" | sed 's/^# //')
     basename=$(basename "$file")
