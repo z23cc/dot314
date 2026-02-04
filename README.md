@@ -110,7 +110,7 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ◐ `branch-term.ts`
 - ● `brave-search/`
 - ○ `code-actions/`
-- ● `commands.ts`
+- ● `command-center/`
 - ○ `confirm-destructive.ts`
 - ● `dedup-agents-files.ts`
 - ◐ `editor-enhancements/`

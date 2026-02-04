@@ -10,6 +10,7 @@
   "pi": {
     "extensions": [
       "./extensions/brave-search/index.ts",
+      "./extensions/command-center/index.ts",
       "./extensions/editor-enhancements/index.ts",
       "./extensions/ephemeral-mode.ts",
       "./extensions/agentic-compaction/index.ts",

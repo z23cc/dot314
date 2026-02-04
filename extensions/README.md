@@ -47,13 +47,12 @@
   - `/md <N>` exports only the last **N turns** (a turn is `[user message → assistant message]`), e.g. `/md 2`, `/md t 2`, `/md think 1`
   - `/md all` (or `/md file`) exports the full session file instead of the current `/tree` branch
 
-- ● [`commands.ts`](commands.ts)
-  - `/commands` — compact overlay for built-in commands, extension commands, prompts, and skills (for when the `/` menu gets long)
-  - Shortcuts: `ctrl+/` and `F1`
-  - Note: this partially depends on a hardcoded list until methods are added to Pi's Extensions API to query built-in and extension-registered commands
+- ● [`command-center/`](command-center/) ([README](./command-center/README.md))
+  - Scrollable widget above the editor displaying all /commands from extensions, prompts, and skills
+  - Configure keybindings etc. via `config.json`
 
 <p align="center">
-  <img width="333" alt="commands overlay" src="https://github.com/user-attachments/assets/b32ba300-62ce-47b2-89b6-25c7cfa2bcbc" />
+  <img width="333" alt="command center demo" src="https://github.com/user-attachments/assets/f9ed3649-ac5b-4658-836b-86091e4985a1" />
 </p>
 
 - ● [`ephemeral-mode.ts`](ephemeral-mode.ts)
