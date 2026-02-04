@@ -1,6 +1,6 @@
 {
   "name": "pi-command-center",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Scrollable widget displaying available /commands from extensions/prompts/skills, compatible with simultaneous editor use.",
   "keywords": [
     "pi-package",
@@ -22,7 +22,8 @@
   "pi": {
     "extensions": [
       "extensions/command-center/index.ts"
-    ]
+    ],
+    "image": "https://github.com/user-attachments/assets/f9ed3649-ac5b-4658-836b-86091e4985a1"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": ">=0.51.0",
