@@ -11,3 +11,5 @@ Templates for the start of `AGENTS.md` or `CLAUDE.md` files. These steer agents 
 ## Notes
 
 The exPi variant is intended for other agent harnesses and omits Pi-specific features.
+
+The other variants include a section advising usage of the `brave_search`, `session_ask`, and `session_lineage` tools, which are unrelated to RepoPrompt but are offered in this repo.

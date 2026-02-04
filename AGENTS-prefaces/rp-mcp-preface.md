@@ -156,3 +156,15 @@ Use Pi-native `ls/find/grep/read/edit/write` only when `rp` is unavailable after
 Unexpected output is usually a routing issue—wrong workspace, wrong window, wrong tab—not a tool failure. Check routing before falling back.
 
 ---
+
+## Current events/facts
+
+Use the `brave_search` tool for current events/facts. Returns citations.
+
+---
+
+## Prehistory
+
+If the user mentions that this session was forked from a parent session and there is implied valuable context there, use the `session_lineage` and `session_ask` tools (if available) to inquire about the ancestors.
+
+If your session begins with a note like "The conversation history before this point was compacted" and the summary omits information you need, you can use the `session_ask` tool (if available) to fill in those gaps about the session's pre-compaction history.
