@@ -7,8 +7,11 @@
  */
 
 import { complete, type AssistantMessage, type Message, type Model, type Tool, type ToolResultMessage } from "@mariozechner/pi-ai";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { BorderedLoader } from "@mariozechner/pi-coding-agent";
+import {
+    BorderedLoader,
+    parseFrontmatter as parseYamlFrontmatter,
+    type ExtensionAPI,
+} from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import * as fs from "node:fs";
 import { homedir } from "node:os";
@@ -165,33 +168,28 @@ type AgentSpec = {
     systemPrompt: string;
 };
 
-function parseFrontmatter(markdown: string): { frontmatter: Record<string, string>; body: string } {
-    if (!markdown.startsWith("---\n")) {
-        return { frontmatter: {}, body: markdown.trim() };
+function parseAgentMarkdown(markdown: string): { frontmatter: Record<string, string>; body: string } {
+    const { frontmatter, body } = parseYamlFrontmatter<Record<string, unknown>>(markdown ?? "");
+
+    // Preserve v1 behavior: provide a flat, lower-cased string map
+    // (the old parser only supported `key: value` lines and always produced strings)
+    const normalized: Record<string, string> = {};
+
+    for (const [rawKey, rawValue] of Object.entries(frontmatter ?? {})) {
+        const key = rawKey.toLowerCase().trim();
+        if (!key) continue;
+
+        const value = (() => {
+            if (typeof rawValue === "string") return rawValue.trim();
+            if (typeof rawValue === "number" || typeof rawValue === "boolean") return String(rawValue);
+            return "";
+        })();
+
+        if (!value) continue;
+        normalized[key] = value;
     }
 
-    const end = markdown.indexOf("\n---\n", 4);
-    if (end === -1) {
-        return { frontmatter: {}, body: markdown.trim() };
-    }
-
-    const frontmatterText = markdown.slice(4, end).trim();
-    const body = markdown.slice(end + "\n---\n".length).trim();
-
-    const frontmatter: Record<string, string> = {};
-
-    for (const line of frontmatterText.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) continue;
-        const colonIdx = trimmed.indexOf(":");
-        if (colonIdx === -1) continue;
-        const key = trimmed.slice(0, colonIdx).trim().toLowerCase();
-        const value = trimmed.slice(colonIdx + 1).trim();
-        if (!key || !value) continue;
-        frontmatter[key] = value;
-    }
-
-    return { frontmatter, body };
+    return { frontmatter: normalized, body: (body ?? "").trim() };
 }
 
 function parseAgentModel(value: string | undefined): { provider: string; id: string } | undefined {
@@ -248,7 +246,7 @@ Rules:
 
     try {
         const raw = fs.readFileSync(agentPath, "utf8");
-        const { frontmatter, body } = parseFrontmatter(raw);
+        const { frontmatter, body } = parseAgentMarkdown(raw);
 
         const model = parseAgentModel(frontmatter["model"]);
 
@@ -531,7 +529,9 @@ function detectSessionIdFromPath(sessionPath: string): string | undefined {
     return m ? m[1] : undefined;
 }
 
-function splitArgs(input: string): string[] {
+// Parse command arguments respecting quoted strings (bash-style)
+// NOTE: kept behavior-identical to the original session-ask implementation
+function parseCommandArgs(input: string): string[] {
     const args: string[] = [];
     let current = "";
     let quote: '"' | "'" | null = null;
@@ -569,7 +569,7 @@ function splitArgs(input: string): string[] {
 }
 
 function parseSessionAskArgs(raw: string): { question: string; sessionPath?: string } {
-    const parts = splitArgs(raw);
+    const parts = parseCommandArgs(raw);
 
     let sessionPath: string | undefined;
     const questionParts: string[] = [];
@@ -614,9 +614,11 @@ async function runSessionAsk(params: RunSessionAskParams): Promise<string> {
     ];
 
     for (const cfg of candidates) {
-        const registryModel = ctx.modelRegistry
-            .getAll()
-            .find((m: any) => m.provider === cfg.provider && m.id === cfg.id);
+        const registryModel = typeof ctx.modelRegistry?.find === "function"
+            ? ctx.modelRegistry.find(cfg.provider, cfg.id)
+            : ctx.modelRegistry
+                .getAll()
+                .find((m: any) => m.provider === cfg.provider && m.id === cfg.id);
 
         if (!registryModel) continue;
 
