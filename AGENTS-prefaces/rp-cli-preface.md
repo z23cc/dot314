@@ -82,10 +82,10 @@ Each rp_exec call is a fresh connection. Use `&&` to chain deterministic sequenc
 | API signatures | rp_exec `structure` | token-efficient, no native equivalent |
 | Context curation | rp_exec `select`, `context` | selection is the chat/review input |
 | Reading repo files | rp_exec `read` | workspace-scoped, supports tail reads |
-| Code editing (preferred) | `rp-cli -c apply_edits -j '{...}'` | reliable JSON edits (multiline, multi-edit, rewrite) |
+| Code editing (preferred) | `rp-cli -c apply_edits -j '{...}'` | JSON args required; reliable edits (multiline, multi-edit, rewrite) |
 | Code editing (fallback) | pi native `edit` | use when direct rp-cli call mode isn't available |
 | File create/move/delete | rp_exec `file create/move/delete` | workspace-aware |
-| File creation with content | `rp-cli -c file_actions -j '{...}'` | create files with explicit content |
+| File creation with content | `rp-cli -c file_actions -j '{...}'` | JSON args required; create files with explicit content |
 
 ---
 
@@ -116,6 +116,10 @@ RepoPrompt output is fenced; rare collision if the file itself contains ``` line
 Use direct tool invocation with JSON args:
 
 `rp-cli -w <id> -t <tab> -c apply_edits -j '{"path":"file.ts","search":"old","replace":"new"}'`
+`rp-cli -w <id> -t <tab> -c apply_edits -j @edits.json`  (from file)
+`echo '{...}' | rp-cli -w <id> -t <tab> -c apply_edits -j @-`  (from stdin)
+
+`-j/--json` accepts inline JSON, `@file`, `@-`, or `path.json` (auto-detected). Raw newlines/tabs in JSON strings are auto-repaired.
 
 Use this when you need multiline edits, multiple edits in one call, diff previews (`verbose:true`), or full rewrites (`rewrite`).
 
@@ -129,6 +133,7 @@ Use rp_exec `file create/move/delete` for workspace-aware file ops.
 
 If you need to create a file with full content in one step, call `file_actions` with JSON via rp-cli call mode:
 `rp-cli -c file_actions -j '{"action":"create","path":"...","content":"..."}'`
+`rp-cli -c file_actions -j @create-file.json`
 
 ---
 
@@ -208,10 +213,17 @@ Shell-level patterns:
 - Describe a tool: `rp-cli -d <tool>`
 - Call a tool: `rp-cli -w <id> -t <tab> -c <tool> -j '{"param":"value"}'`
 
+Machine-readable schemas:
+- All tools as JSON: `rp-cli --tools-schema`
+- Group-filtered JSON: `rp-cli --tools-schema=explore`
+- Same via exec mode: `rp-cli -e 'tools --schema'`
+
 Common calls:
 - `rp-cli -c apply_edits -j '{...}'` — complex edits (multi-edit, multiline, rewrite)
 - `rp-cli -c file_actions -j '{...}'` — creating files with complex content
 - `rp-cli -c git -j '{"op":"diff","detail":"files"}'` — token-efficient git operations
+- `rp-cli -c git -j '{"op":"diff","detail":"patches"}'` — inline patch hunks (truncated)
+- `rp-cli -c git -j '{"op":"diff","detail":"full"}'` — untruncated patch output
 - `rp-cli -c git -j '{"op":"diff","compare":"main"}'` — diff vs auto-detected trunk branch
 - `rp-cli -c git -j '{"op":"status","repo_root":"@main:feature-branch"}'` — target worktree by branch
 

@@ -68,7 +68,7 @@ Keep context intentional: select only what you need, prefer codemaps for referen
 | Window routing | `rp({ windows: true })` then `rp({ bind: { window: N, tab: "Compose" } })` | bind before operating |
 | Workspace/tab mgmt | `manage_workspaces action="list\|switch\|create\|delete\|add_folder\|list_tabs\|select_tab"` | see workspace hygiene |
 | Auto context | `context_builder instructions="..." [response_type="clarify\|question\|plan\|review"]` | token-costly, invoke explicitly |
-| Git operations | `git op="status\|diff\|log\|show\|blame" [compare="..."] [detail="..."]` | worktree support via `main`/`trunk` aliases, `@main:<branch>` |
+| Git operations | `git op="status\|diff\|log\|show\|blame" [compare="..."] [detail="..."]` | detail levels: `summary\|files\|patches\|full`; worktree support via `main`/`trunk` aliases, `@main:<branch>` |
 
 ---
 
@@ -132,12 +132,16 @@ Use RepoPrompt chat as reviewer:
 
 Runs an agent to explore the codebase and curate file selection automatically.
 
+Describe **what** you need, not **where** to look. Mention what you know and what you're unsure about; avoid over-constraining discovery.
+
 - `response_type="clarify"` (default): Returns context only—for handoff or manual refinement
 - `response_type="question"`: Answers using built context, returns `chat_id`
 - `response_type="plan"`: Generates implementation plan, returns `chat_id`
 - `response_type="review"`: Generates a code review with git diff context, returns `chat_id`
 
 Use returned `chat_id` with `chat_send new_chat=false chat_id="..."` for followup.
+
+`<discovery_agent-guidelines>` is optional and should be treated as starting hints only. The agent may explore beyond those hints.
 
 Token-costly—invoke explicitly when user requests or during planning phases, not automatically.
 

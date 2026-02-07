@@ -1,13 +1,14 @@
-Version 1.6.9
-New Features
-Ruby language support - Code structure analysis now supports Ruby files with Tree-sitter integration
-OpenAI service tier variants - Choose service tier (auto, default, flex) per-model in the model picker, with a new global default tier setting
+Version 1.6.14
+
+New Features (CLI)
+
+Machine-readable tool schemas - New --tools-schema flag and tools --schema command for structured JSON output of tool definitions, enabling integration with external systems
+JSON file/stdin support - Pass JSON arguments via @file or @- (stdin) for easier handling of complex payloads
 Improvements
-Code structure enhancements
-Line numbers now included for function/method definitions, helping AI models locate and read code more efficiently
-Improved parsing accuracy for Swift, TypeScript, JavaScript, C/C++, Dart, and other languages
-Better handling of complex signatures, nested types, and class/interface boundaries
-Performance improvements with regex caching and optimized line handling
-Model picker refinements - Cleaner UI with legacy models hidden, unified planning model handling, and improved model selection consistency
-Path resolution improvements - Root folder names now work as aliases in search filters and file resolution
-API fixes - Temperature parameter no longer sent to reasoning models (which don't support it)
+
+Improved git tool diff detail levels - New "patches" detail level for truncated diffs; "full" now provides complete untruncated output
+Better discovery agent guidance - Context builder now explores more broadly and effectively when analyzing codebases
+Smarter CLI JSON parsing - Auto-detects JSON files and auto-repairs common formatting issues from LLM outputs
+Fixes
+
+Fixed silent failures in apply_edits replace-all - Now shows a clear error when no matches are found instead of silently succeeding

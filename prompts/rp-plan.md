@@ -18,7 +18,7 @@ Your goal is a **decision-complete** plan: an implementer (human/agent) should n
 - RepoPrompt exploration: `get_file_tree`, `file_search`, `get_code_structure`, `read_file`
 - Context ops: `context_builder`, `manage_selection`, `workspace_context`, `prompt`
 - Reasoning: `chat_send` in `mode="plan"` (and `mode="chat"` if useful)
-- Git inspection: `git status/log/diff(detail="files")` (avoid dumping full diffs into your own output)
+- Git inspection: `git status/log/diff(detail="files")` (use `detail="patches"`/`"full"` only when necessary; avoid dumping full diffs into your own output)
 
 ### Forbidden (plan-executing / mutating)
 - Any repo-tracked mutation: `apply_edits`, `file_actions`, codegen, formatters that rewrite files, migrations, etc.
@@ -100,6 +100,7 @@ Token budget target: ~60k (adjust if user specified)
 </context>
 
 <discovery_agent-guidelines>
+(Optional) Starting hints only — explore beyond these if needed.
 Focus on likely entrypoints + adjacent impacted systems.
 Prefer codemaps/slices for breadth; full content only for key files.
 Return:
