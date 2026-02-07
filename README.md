@@ -64,6 +64,7 @@ This repo contains more resources than the package exports. When installed as a 
 - ● `brave-search/`  (requires `BRAVE_API_KEY`)
 - ● `editor-enhancements/`
 - ● `ephemeral-mode.ts`
+- ● `fork-from-first.ts`
 - ◐ `agentic-compaction/`
 - ◐ `guardrails/`
 - ● `md.ts`
@@ -115,6 +116,7 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ● `dedup-agents-files.ts`
 - ◐ `editor-enhancements/`
 - ● `ephemeral-mode.ts`
+- ● `fork-from-first.ts`
 - ◐ `agentic-compaction/`
 - ● `session-ask/`
 - ◐ `guardrails/`

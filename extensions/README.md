@@ -53,6 +53,10 @@
   - `/md <N>` exports only the last **N turns** (a turn is `[user message → assistant message]`), e.g. `/md 2`, `/md t 2`, `/md think 1`
   - `/md all` (or `/md file`) exports the full session file instead of the current `/tree` branch
 
+- ● [`fork-from-first.ts`](fork-from-first.ts)
+  - `/fork-from-first` forks the current session from its first user message and switches into the new fork immediately
+  - If `rewind/` is installed, it requests rewind’s conversation-only fork mode (“keep current files”) for that fork
+
 - ● [`command-center/`](command-center/) ([README](./command-center/README.md))
   - Scrollable widget above the editor displaying all /commands from extensions, prompts, and skills
   - Configure keybindings etc. via `config.json`

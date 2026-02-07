@@ -13,6 +13,7 @@
       "./extensions/command-center/index.ts",
       "./extensions/editor-enhancements/index.ts",
       "./extensions/ephemeral-mode.ts",
+      "./extensions/fork-from-first.ts",
       "./extensions/agentic-compaction/index.ts",
       "./extensions/guardrails/index.ts",
       "./extensions/md.ts",
