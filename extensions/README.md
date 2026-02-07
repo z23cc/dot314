@@ -168,7 +168,6 @@
 Single-file extensions (see file headers):
 
 Upstream: [pi-mono examples](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent/examples/extensions)
-- ○ `confirm-destructive.ts`
 - ○ `inline-bash.ts` — expands `!{command}` patterns in prompts via `input` event transformation
 - ○ `interactive-shell.ts`
 - ○ `mac-system-theme.ts`

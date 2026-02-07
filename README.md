@@ -112,7 +112,6 @@ See [extensions/README.md](extensions/README.md) for descriptions
 - ● `brave-search/`
 - ○ `code-actions/`
 - ● `command-center/`
-- ○ `confirm-destructive.ts`
 - ● `dedup-agents-files.ts`
 - ◐ `editor-enhancements/`
 - ● `ephemeral-mode.ts`
