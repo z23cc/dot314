@@ -23,6 +23,7 @@ const BEFORE_RESTORE_PREFIX = "before-restore-";
 const MAX_CHECKPOINTS = 100;
 const STATUS_KEY = "rewind";
 const SETTINGS_FILE = join(homedir(), ".pi", "agent", "settings.json");
+const FORK_PREFERENCE_SOURCE_ALLOWLIST = new Set(["fork-from-first"]);
 
 type ExecFn = (cmd: string, args: string[]) => Promise<{ stdout: string; stderr: string; code: number }>;
 
@@ -62,6 +63,8 @@ export default function (pi: ExtensionAPI) {
   // Pending checkpoint: worktree state captured at turn_start, waiting for turn_end
   // to associate with the correct user message entry ID
   let pendingCheckpoint: { commitSha: string; timestamp: number } | null = null;
+  let forceConversationOnlyOnNextFork = false;
+  let forceConversationOnlySource: string | null = null;
 
   /**
    * Update the footer status with checkpoint count
@@ -87,6 +90,8 @@ export default function (pi: ExtensionAPI) {
     isGitRepo = false;
     sessionId = null;
     pendingCheckpoint = null;
+    forceConversationOnlyOnNextFork = false;
+    forceConversationOnlySource = null;
     cachedSilentCheckpoints = null;
   }
 
@@ -346,6 +351,23 @@ export default function (pi: ExtensionAPI) {
     updateStatus(ctx);
   }
 
+  pi.events.on("rewind:fork-preference", (data: any) => {
+    if (data?.mode !== "conversation-only") {
+      return;
+    }
+
+    if (typeof data?.source !== "string") {
+      return;
+    }
+
+    if (!FORK_PREFERENCE_SOURCE_ALLOWLIST.has(data.source)) {
+      return;
+    }
+
+    forceConversationOnlyOnNextFork = true;
+    forceConversationOnlySource = data.source;
+  });
+
   pi.on("session_start", async (_event, ctx) => {
     await initializeForSession(ctx);
   });
@@ -414,6 +436,13 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_before_fork", async (event, ctx) => {
+    const shouldForceConversationOnly = forceConversationOnlyOnNextFork;
+    const forcedBySource = forceConversationOnlySource;
+
+    // One-shot preference: consume immediately so it never leaks into later /fork usage
+    forceConversationOnlyOnNextFork = false;
+    forceConversationOnlySource = null;
+
     if (!ctx.hasUI) return;
     if (!sessionId) return;
 
@@ -421,6 +450,14 @@ export default function (pi: ExtensionAPI) {
       const result = await pi.exec("git", ["rev-parse", "--is-inside-work-tree"]);
       if (result.stdout.trim() !== "true") return;
     } catch {
+      return;
+    }
+
+    if (shouldForceConversationOnly) {
+      if (!getSilentCheckpointsSetting()) {
+        const sourceLabel = forcedBySource ? ` (${forcedBySource})` : "";
+        ctx.ui.notify(`Rewind: using conversation-only fork (keep current files)${sourceLabel}`, "info");
+      }
       return;
     }
 
