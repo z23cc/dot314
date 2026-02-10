@@ -2,7 +2,7 @@
 
 ## New or locally modified
 
-- ● [`model-aware-compaction/`](model-aware-compaction/)
+- ● [`model-aware-compaction/`](model-aware-compaction/) -- ⚠️ WIP & experimental
   - Triggers auto-compaction at model-specific percentage thresholds of context window usage
   - Configure per-model thresholds in `config.json` (keyed by model ID, supports wildcards like `claude-*`)
   - `global` setting for models without specific overrides
@@ -56,6 +56,12 @@
 - ● [`fork-from-first.ts`](fork-from-first.ts)
   - `/fork-from-first` forks the current session from its first user message and switches into the new fork immediately
   - If `rewind/` is installed, it requests rewind’s conversation-only fork mode (“keep current files”) for that fork
+
+- ● [`move-session.ts`](move-session.ts)
+  - `/session-move <targetCwd>` moves the *current session* to a different working directory, intended for when you started pi in one folder but come to find that you need it in another after building up valuable context
+  - Forks the session JSONL into the target cwd bucket (`SessionManager.forkFrom(...)`), then relaunches `pi --session <fork>` with `cwd=<targetCwd>` so the footer + built-in tools resolve relative paths against the new directory
+  - Uses `trash` to delete the old session file (best-effort); if `trash` isn’t available, it leaves the old file in place
+  - Supports `~` expansion (e.g. `/session-move ~/code/my-project`)
 
 - ● [`command-center/`](command-center/) ([README](./command-center/README.md))
   - Scrollable widget above the editor displaying all /commands from extensions, prompts, and skills
