@@ -169,3 +169,10 @@ Use native tools only when RepoPrompt is unavailable after one retry.
 Unexpected output is usually a routing issue—wrong workspace, wrong window, wrong tab—not a tool failure. Check routing before falling back.
 
 ---
+
+## Edit Discipline
+
+- Re-read the target region of a file before editing if: (a) the last read was >2 turns ago, (b) you edited the same file since last reading it, or (c) you switched RP windows since last reading it
+- After an `apply_edits` failure, always re-read before retrying — never guess at what changed
+- When making multiple edits to the same file, apply them one at a time (each edit shifts content for subsequent ones)
+- Confirm you are bound to the correct RP window before any `apply_edits` — relative paths resolve against the bound workspace
