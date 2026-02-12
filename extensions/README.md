@@ -100,6 +100,7 @@
 </p>
 
 - ● [`brave-search/`](brave-search/) ([README](./brave-search/README.md))
+  - 🔄 **For general-purpose agent web search, consider [pi-web-access](https://github.com/nicobailon/pi-web-access) instead** (Gemini search, AI-synthesized overview + citations). `brave-search` remains useful when you specifically need individual search results with per-result previews
   - Token-efficient Brave web search with optional content extraction/clipping for "read the docs / answer from sources" workflows
   - Manual command: `/ws <query> ... [--content]` (no model turn)
   - LLM tool: `brave_search({ query, count, country, freshness, fetchContent, format })`

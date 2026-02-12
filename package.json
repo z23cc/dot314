@@ -2,11 +2,22 @@
   "name": "dot314",
   "version": "0.1.2",
   "private": true,
-  "description": "Collection of original or augmented Pi themes, skills, and extensions, several of which facilitate Pi's integration with RepoPrompt.",
+  "description": "Collection of original or modded Pi themes, skills, and extensions, several of which facilitate Pi's integration with RepoPrompt.",
   "keywords": [
-    "pi-package"
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "repoprompt"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/w-winter/dot314.git"
+  },
+  "bugs": {
+    "url": "https://github.com/w-winter/dot314/issues"
+  },
+  "homepage": "https://github.com/w-winter/dot314#readme",
   "pi": {
     "extensions": [
       "./extensions/brave-search/index.ts",

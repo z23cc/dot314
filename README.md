@@ -1,18 +1,27 @@
-# Tools and accessories for [Pi coding agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
+# dot314
 
-- [extensions/](extensions/) ([README](extensions/README.md))
-- [skills/](skills/) ([README](skills/README.md))
-- [themes/](themes/)
-- [AGENTS-prefaces/](AGENTS-prefaces/)
-- [prompts/](prompts/) ([README](prompts/README.md))
+Extensions, skills, prompts, and themes for [Pi coding agent](https://github.com/mariozechner/pi-coding-agent).  There is an emphasis here on making Pi and [RepoPrompt](https://repoprompt.com) co-operate well.
 
-The Pi resources I'm currently enjoying - some adapted from the community, some original.  There is an emphasis here on making Pi and RepoPrompt co-operate well.
+> This is a personal collection.  Some items are original, some adapted from the Pi community, some used unadapted.  It's tailored to my workflow and may introduce breaking changes without notice.  Unadapted items may lag well behind their upstream versions.  Extensions published as [Pi packages](#install-individual-extensions-from-npm) receive more careful maintenance.
 
-## Provenance
+## Provenance key
 
 - ● → new
 - ◐ → from Pi community, modified
 - ○ → from Pi community, unmodified
+
+## Quick start
+
+```bash
+pi install git:github.com/w-winter/dot314    # install the package
+pi config                                     # enable/disable individual extensions and themes
+```
+
+Or try it for a single run without installing:
+
+```bash
+pi -e git:github.com/w-winter/dot314
+```
 
 ## Installation
 
@@ -28,19 +37,31 @@ pi install git:github.com/w-winter/dot314
 pi install https://github.com/w-winter/dot314
 ```
 
-Try it for a single run without installing:
-
-```bash
-pi -e git:github.com/w-winter/dot314
-```
-
 Project-local install (writes to `.pi/settings.json`):
 
 ```bash
 pi install -l git:github.com/w-winter/dot314
 ```
 
-After installing, use `pi config` to enable/disable individual extensions, skills, and themes.
+After installing, use `pi config` to enable/disable individual extensions, skills, and themes. You can also filter in `settings.json` - for example:
+
+```json
+{
+  "packages": [
+    {
+      "source": "git:github.com/w-winter/dot314",
+      "extensions": [
+        "extensions/repoprompt-mcp/src/index.ts",
+        "extensions/rp-native-tools-lock/index.ts",
+        "extensions/session-ask/index.ts",
+        "extensions/vog/index.ts"
+      ]
+    }
+  ]
+}
+```
+
+Use `!path` to exclude specific extensions, or list only the ones you want. See [package filtering](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/packages.md#package-filtering) for the full syntax.
 
 Notes:
 - `pi install ...` runs `npm install` in the package root automatically
@@ -48,7 +69,7 @@ Notes:
 
 ### Install individual extensions from npm
 
-If you only want one extension, you can install the per-extension npm packages (see `packages/` in this repo).
+If you only want one extension, you can install the per-extension npm packages (see [`packages/`](packages/) in this repo).
 
 Example:
 
@@ -56,35 +77,59 @@ Example:
 pi install npm:pi-repoprompt-cli
 ```
 
+All available npm packages:
+
+| npm package | Extension |
+|---|---|
+| [pi-brave-search](https://www.npmjs.com/package/pi-brave-search) | brave-search |
+| [pi-command-center](https://www.npmjs.com/package/pi-command-center) | command-center |
+| [pi-ephemeral](https://www.npmjs.com/package/pi-ephemeral) | ephemeral-mode |
+| [pi-md-export](https://www.npmjs.com/package/pi-md-export) | md |
+| [pi-model-sysprompt-appendix](https://www.npmjs.com/package/pi-model-sysprompt-appendix) | model-sysprompt-appendix |
+| [pi-poly-notify](https://www.npmjs.com/package/pi-poly-notify) | poly-notify |
+| [pi-repoprompt-cli](https://www.npmjs.com/package/pi-repoprompt-cli) | repoprompt-cli |
+| [pi-repoprompt-mcp](https://www.npmjs.com/package/pi-repoprompt-mcp) | repoprompt-mcp |
+| [pi-repoprompt-tools-lock](https://www.npmjs.com/package/pi-repoprompt-tools-lock) | rp-native-tools-lock |
+| [pi-session-ask](https://www.npmjs.com/package/pi-session-ask) | session-ask |
+| [pi-voice-of-god](https://www.npmjs.com/package/pi-voice-of-god) | vog |
+
 ### What the Pi package includes
 
-This repo contains more resources than the package exports. When installed as a Pi package, Pi will discover only the resources listed in [`package.json`](package.json):
+This repo contains more resources than the package exports. When installed as a Pi package, Pi will discover only the resources declared in [`package.json`](package.json):
 
 **Extensions**
-- ● `brave-search/`  (requires `BRAVE_API_KEY`)
-- ● `editor-enhancements/`
-- ● `ephemeral-mode.ts`
-- ● `fork-from-first.ts`
-- ◐ `agentic-compaction/`
-- ◐ `guardrails/`
-- ● `md.ts`
-- ● `model-aware-compaction/`
-- ● `model-sysprompt-appendix/`
-- ● `move-session.ts`
-- ● `poly-notify/`
-- ◐ `oracle.ts`
-- ◐ `plan-mode.ts`
-- ● `repoprompt-cli.ts`
-- ● `repoprompt-mcp/`
-- ● `rp-native-tools-lock/`
-- ◐ `sandbox/`
-- ◐ `tools/`
-- ◐ `usage-bar.ts`
-- ● `vog/`
+
+| | Extension | Notes |
+|---|---|---|
+| ● | `brave-search/` | Web search + content extraction. Requires `BRAVE_API_KEY`. 🔄 Consider [pi-web-access](https://github.com/nicobailon/pi-web-access) for general-purpose agent search |
+| ● | `command-center/` | /command palette widget |
+| ● | `editor-enhancements/` | File picker, shell completions, raw paste |
+| ● | `ephemeral-mode.ts` | Delete session on exit |
+| ● | `fork-from-first.ts` | Quickly fork session from first message |
+| ◐ | `agentic-compaction/` | Summarizer explores conversation as a filesystem |
+| ◐ | `guardrails/` | Env file protection, dangerous command gate |
+| ● | `md.ts` | Export session or last N turns to Markdown |
+| ● | `model-aware-compaction/` | Per-model compaction thresholds |
+| ● | `model-sysprompt-appendix/` | Per-model system prompt additions |
+| ● | `move-session.ts` | Move session to a different cwd |
+| ● | `poly-notify/` | Desktop / sound / Pushover notifications |
+| ◐ | `oracle.ts` | Second opinion from alternate model |
+| ◐ | `plan-mode.ts` | Read-only planning sandbox |
+| ● | `repoprompt-cli.ts` | RepoPrompt bridge via rp-cli |
+| ● | `repoprompt-mcp/` | RepoPrompt MCP proxy with binding + rendering |
+| ● | `rp-native-tools-lock/` | Prefer RP tools over Pi native tools |
+| ● | `session-ask/` | Query session history via subagent |
+| ◐ | `sandbox/` | OS-level sandboxing |
+| ◐ | `tools/` | Interactive tool enable/disable |
+| ◐ | `usage-bar.ts` | Provider quota overlay |
+| ● | `vog/` | Inject custom system prompt message |
 
 **Themes**
-- ● `themes/violet-dawn.json`
-- ● `themes/violet-dusk.json`
+
+| | Theme |
+|---|---|
+| ● | `themes/violet-dawn.json` |
+| ● | `themes/violet-dusk.json` |
 
 ### Manual / symlink setup
 
@@ -106,89 +151,101 @@ ln -s ~/path/to/dot314-agent/skills/* ~/.pi/agent/skills/
 
 Pi scans `~/.pi/agent/extensions/`, `skills/`, and `prompts/` for resources.
 
-## Extensions
+---
 
-See [extensions/README.md](extensions/README.md) for descriptions
+## Everything in this repo
 
-- ◐ `branch-term.ts`
-- ● `brave-search/`
-- ○ `code-actions/`
-- ● `command-center/`
-- ● `dedup-agents-files.ts`
-- ◐ `editor-enhancements/`
-- ● `ephemeral-mode.ts`
-- ● `fork-from-first.ts`
-- ◐ `agentic-compaction/`
-- ● `session-ask/`
-- ◐ `guardrails/`
-- ○ `inline-bash.ts`
-- ○ `interactive-shell.ts`
-- ○ `mac-system-theme.ts`
-- ● `md.ts`
-- ● `model-aware-compaction/`
-- ● `model-sysprompt-appendix/`
-- ● `move-session.ts`
-- ● `poly-notify/`
-- ◐ `oracle.ts`
-- ○ `pi-prompt-template-model/`
-- ◐ `plan-mode.ts`
-- ○ `preset.ts`
-- ○ `questionnaire.ts`
-- ● `repoprompt-cli.ts`
-- ● `repoprompt-mcp/`
-- ○ `review.ts`
-- ◐ `rewind/`
-- ● `rp-native-tools-lock/`
-- ◐ `sandbox/`
-- ○ `send-user-message.ts`
-- ◐ `skill-palette/`
-- ○ `speedreading.ts`
-- ○ `status-line.ts`
-- ○ `subagent/`
-- ○ `titlebar-spinner.ts`
-- ○ `todos.ts`
-- ◐ `tools/`
-- ◐ `ultrathink.ts`
-- ◐ `usage-bar.ts`
-- ● `vog/`
+The sections below list all resources in this repository, including items not exported by the Pi package.
 
-## Skills
+### Extensions
 
-See [skills/README.md](skills/README.md)
+See [extensions/README.md](extensions/README.md) for full descriptions.
 
-Note: the Pi package does not export any skills. The skills in this repo are intended for local/symlink workflows.
+| | Extension |
+|---|---|
+| ◐ | `branch-term.ts` |
+| ● | `brave-search/` |
+| ○ | `code-actions/` |
+| ● | `command-center/` |
+| ● | `dedup-agents-files.ts` |
+| ◐ | `editor-enhancements/` |
+| ● | `ephemeral-mode.ts` |
+| ● | `fork-from-first.ts` |
+| ◐ | `agentic-compaction/` |
+| ● | `session-ask/` |
+| ◐ | `guardrails/` |
+| ○ | `inline-bash.ts` |
+| ○ | `interactive-shell.ts` |
+| ○ | `mac-system-theme.ts` |
+| ● | `md.ts` |
+| ● | `model-aware-compaction/` |
+| ● | `model-sysprompt-appendix/` |
+| ● | `move-session.ts` |
+| ● | `poly-notify/` |
+| ◐ | `oracle.ts` |
+| ○ | `pi-prompt-template-model/` |
+| ◐ | `plan-mode.ts` |
+| ○ | `preset.ts` |
+| ○ | `questionnaire.ts` |
+| ● | `repoprompt-cli.ts` |
+| ● | `repoprompt-mcp/` |
+| ○ | `review.ts` |
+| ◐ | `rewind/` |
+| ● | `rp-native-tools-lock/` |
+| ◐ | `sandbox/` |
+| ○ | `send-user-message.ts` |
+| ◐ | `skill-palette/` |
+| ○ | `speedreading.ts` |
+| ○ | `status-line.ts` |
+| ○ | `subagent/` |
+| ○ | `titlebar-spinner.ts` |
+| ○ | `todos.ts` |
+| ◐ | `tools/` |
+| ◐ | `ultrathink.ts` |
+| ◐ | `usage-bar.ts` |
+| ● | `vog/` |
 
-- ● `repoprompt-tool-guidance-refresh/` (maintainer workflow; writes tracking files and edits docs)
-- ◐ `text-search/`
-- ◐ `dev-browser/`
-- ○ `agent-browser/`
-- ○ `surf/`
-- ◐ `xcodebuildmcp/`
-- ○ `gdcli/`
+### Skills
 
-## Prompts
+The Pi package does not export any skills. The skills in this repo are intended for local/symlink workflows.
 
-See [prompts/README.md](prompts/README.md)
+See [skills/README.md](skills/README.md) for full descriptions.
 
-Note: prompts are not exported as part of the Pi package.
+| | Skill | Notes |
+|---|---|---|
+| ● | `repoprompt-tool-guidance-refresh/` | Maintainer workflow |
+| ◐ | `text-search/` | |
+| ◐ | `dev-browser/` | 🔄 Prefer [surf/](skills/surf/) for browsing/scraping, [agent-browser/](skills/agent-browser/) for structured testing |
+| ○ | `agent-browser/` | |
+| ○ | `surf/` | |
+| ◐ | `xcodebuildmcp/` | |
+| ○ | `gdcli/` | |
 
-### /command prompts
+### Prompts
 
-- ○ `handoff.md`
-- ○ `pickup.md`
-- ● `rp-plan.md`
-- ● `rp-review-chat.md`
-- ● `rp-address-review.md`
+Prompts are not exported as part of the Pi package.
 
-### AGENTS.md prefaces for reliable RepoPrompt tool usage
+See [prompts/README.md](prompts/README.md) for full descriptions.
 
-See [AGENTS-prefaces/README.md](AGENTS-prefaces/README.md)
+**`/command` prompts**
 
-- ● `AGENTS-prefaces/rp-cli-preface.md`
-- ● `AGENTS-prefaces/rp-mcp-preface.md`
-- ● `AGENTS-prefaces/rp-mcp-preface-exPi.md`
+| | Prompt |
+|---|---|
+| ○ | `handoff.md` |
+| ○ | `pickup.md` |
+| ● | `rp-plan.md` |
+| ● | `rp-review-chat.md` |
+| ● | `rp-address-review.md` |
 
-## Themes
+**AGENTS.md prefaces for reliable RepoPrompt tool usage** — see [AGENTS-prefaces/README.md](AGENTS-prefaces/README.md)
+
+| | Preface |
+|---|---|
+| ● | `AGENTS-prefaces/rp-cli-preface.md` |
+| ● | `AGENTS-prefaces/rp-mcp-preface.md` |
+| ● | `AGENTS-prefaces/rp-mcp-preface-exPi.md` |
+
+### Themes
 
 - ● `violet-dawn.json`
 - ● `violet-dusk.json`
