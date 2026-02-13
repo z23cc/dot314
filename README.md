@@ -101,25 +101,25 @@ This repo contains more resources than the package exports. When installed as a 
 
 | | Extension | Notes |
 |---|---|---|
+| ◐ | `agentic-compaction/` | Summarizer explores conversation as a filesystem |
 | ● | `brave-search/` | Web search + content extraction. Requires `BRAVE_API_KEY`. 🔄 Consider [pi-web-access](https://github.com/nicobailon/pi-web-access) for general-purpose agent search |
 | ● | `command-center/` | /command palette widget |
 | ● | `editor-enhancements/` | File picker, shell completions, raw paste |
 | ● | `ephemeral-mode.ts` | Delete session on exit |
 | ● | `fork-from-first.ts` | Quickly fork session from first message |
-| ◐ | `agentic-compaction/` | Summarizer explores conversation as a filesystem |
 | ● | `md.ts` | Export session or last N turns to Markdown |
 | ● | `model-aware-compaction/` | Per-model compaction thresholds |
 | ● | `model-sysprompt-appendix/` | Per-model system prompt additions |
 | ● | `move-session.ts` | Move session to a different cwd |
-| ● | `poly-notify/` | Desktop / sound / Pushover notifications |
 | ◐ | `oracle.ts` | Second opinion from alternate model |
 | ◐ | `plan-mode.ts` | Read-only planning sandbox |
+| ● | `poly-notify/` | Desktop / sound / Pushover notifications |
 | ● | `protect-paths.ts` | Directory protection, brew prevention, extra command gates. 🔄 Replaces the path/brew hooks from old `guardrails/`; install [`@aliou/pi-guardrails`](https://github.com/aliou/pi-extensions) for `.env` protection + AST-based dangerous command gates |
 | ● | `repoprompt-cli.ts` | RepoPrompt bridge via rp-cli |
 | ● | `repoprompt-mcp/` | RepoPrompt MCP proxy with binding + rendering |
 | ● | `rp-native-tools-lock/` | Prefer RP tools over Pi native tools |
-| ● | `session-ask/` | Query session history via subagent |
 | ◐ | `sandbox/` | OS-level sandboxing |
+| ● | `session-ask/` | Query session history via subagent |
 | ◐ | `tools/` | Interactive tool enable/disable |
 | ◐ | `usage-bar.ts` | Provider quota overlay |
 | ● | `vog/` | Inject custom system prompt message |
@@ -163,6 +163,7 @@ See [extensions/README.md](extensions/README.md) for full descriptions.
 
 | | Extension |
 |---|---|
+| ◐ | `agentic-compaction/` |
 | ◐ | `branch-term.ts` |
 | ● | `brave-search/` |
 | ○ | `code-actions/` |
@@ -171,9 +172,6 @@ See [extensions/README.md](extensions/README.md) for full descriptions.
 | ◐ | `editor-enhancements/` |
 | ● | `ephemeral-mode.ts` |
 | ● | `fork-from-first.ts` |
-| ◐ | `agentic-compaction/` |
-| ● | `session-ask/` |
-| ● | `protect-paths.ts` |
 | ○ | `inline-bash.ts` |
 | ○ | `interactive-shell.ts` |
 | ○ | `mac-system-theme.ts` |
@@ -181,11 +179,12 @@ See [extensions/README.md](extensions/README.md) for full descriptions.
 | ● | `model-aware-compaction/` |
 | ● | `model-sysprompt-appendix/` |
 | ● | `move-session.ts` |
-| ● | `poly-notify/` |
 | ◐ | `oracle.ts` |
 | ○ | `pi-prompt-template-model/` |
 | ◐ | `plan-mode.ts` |
+| ● | `poly-notify/` |
 | ○ | `preset.ts` |
+| ● | `protect-paths.ts` |
 | ○ | `questionnaire.ts` |
 | ● | `repoprompt-cli.ts` |
 | ● | `repoprompt-mcp/` |
@@ -194,6 +193,7 @@ See [extensions/README.md](extensions/README.md) for full descriptions.
 | ● | `rp-native-tools-lock/` |
 | ◐ | `sandbox/` |
 | ○ | `send-user-message.ts` |
+| ● | `session-ask/` |
 | ◐ | `skill-palette/` |
 | ○ | `speedreading.ts` |
 | ○ | `status-line.ts` |
@@ -213,13 +213,13 @@ See [skills/README.md](skills/README.md) for full descriptions.
 
 | | Skill | Notes |
 |---|---|---|
-| ● | `repoprompt-tool-guidance-refresh/` | Maintainer workflow |
-| ◐ | `text-search/` | |
-| ◐ | `dev-browser/` | 🔄 Prefer [surf/](skills/surf/) for browsing/scraping, [agent-browser/](skills/agent-browser/) for structured testing |
 | ○ | `agent-browser/` | |
-| ○ | `surf/` | |
-| ◐ | `xcodebuildmcp/` | |
+| ◐ | `dev-browser/` | 🔄 Prefer [surf/](skills/surf/) for browsing/scraping, [agent-browser/](skills/agent-browser/) for structured testing |
 | ○ | `gdcli/` | |
+| ● | `repoprompt-tool-guidance-refresh/` | Maintainer workflow |
+| ○ | `surf/` | |
+| ◐ | `text-search/` | |
+| ◐ | `xcodebuildmcp/` | |
 
 ### Prompts
 
@@ -233,9 +233,9 @@ See [prompts/README.md](prompts/README.md) for full descriptions.
 |---|---|
 | ○ | `handoff.md` |
 | ○ | `pickup.md` |
+| ● | `rp-address-review.md` |
 | ● | `rp-plan.md` |
 | ● | `rp-review-chat.md` |
-| ● | `rp-address-review.md` |
 
 **AGENTS.md prefaces for reliable RepoPrompt tool usage** — see [AGENTS-prefaces/README.md](AGENTS-prefaces/README.md)
 
