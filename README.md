@@ -107,7 +107,6 @@ This repo contains more resources than the package exports. When installed as a 
 | ● | `ephemeral-mode.ts` | Delete session on exit |
 | ● | `fork-from-first.ts` | Quickly fork session from first message |
 | ◐ | `agentic-compaction/` | Summarizer explores conversation as a filesystem |
-| ◐ | `guardrails/` | Env file protection, dangerous command gate |
 | ● | `md.ts` | Export session or last N turns to Markdown |
 | ● | `model-aware-compaction/` | Per-model compaction thresholds |
 | ● | `model-sysprompt-appendix/` | Per-model system prompt additions |
@@ -115,6 +114,7 @@ This repo contains more resources than the package exports. When installed as a 
 | ● | `poly-notify/` | Desktop / sound / Pushover notifications |
 | ◐ | `oracle.ts` | Second opinion from alternate model |
 | ◐ | `plan-mode.ts` | Read-only planning sandbox |
+| ● | `protect-paths.ts` | Directory protection, brew prevention, extra command gates. 🔄 Replaces the path/brew hooks from old `guardrails/`; install [`@aliou/pi-guardrails`](https://github.com/aliou/pi-extensions) for `.env` protection + AST-based dangerous command gates |
 | ● | `repoprompt-cli.ts` | RepoPrompt bridge via rp-cli |
 | ● | `repoprompt-mcp/` | RepoPrompt MCP proxy with binding + rendering |
 | ● | `rp-native-tools-lock/` | Prefer RP tools over Pi native tools |
@@ -173,7 +173,7 @@ See [extensions/README.md](extensions/README.md) for full descriptions.
 | ● | `fork-from-first.ts` |
 | ◐ | `agentic-compaction/` |
 | ● | `session-ask/` |
-| ◐ | `guardrails/` |
+| ● | `protect-paths.ts` |
 | ○ | `inline-bash.ts` |
 | ○ | `interactive-shell.ts` |
 | ○ | `mac-system-theme.ts` |

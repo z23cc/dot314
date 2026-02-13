@@ -26,7 +26,7 @@
       "./extensions/ephemeral-mode.ts",
       "./extensions/fork-from-first.ts",
       "./extensions/agentic-compaction/index.ts",
-      "./extensions/guardrails/index.ts",
+      "./extensions/protect-paths.ts",
       "./extensions/md.ts",
       "./extensions/model-aware-compaction/index.ts",
       "./extensions/model-sysprompt-appendix/index.ts",
