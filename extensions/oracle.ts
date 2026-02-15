@@ -12,7 +12,7 @@
 import { completeSimple, type UserMessage, type Model } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@mariozechner/pi-coding-agent";
 import { BorderedLoader, convertToLlm, serializeConversation } from "@mariozechner/pi-coding-agent";
-import { Text, matchesKey, visibleWidth } from "@mariozechner/pi-tui";
+import { Text, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -142,39 +142,31 @@ class OracleResultComponent {
 		}
 
 		const lines: string[] = [];
-		const boxWidth = Math.min(80, width - 4);
-		const contentWidth = boxWidth - 4;
+		const boxWidth = Math.max(1, Math.min(80, width - 4));
+		// "boxWidth" is the horizontal rule width; actual line width is boxWidth + 2 (borders)
+		const contentWidth = Math.max(0, boxWidth - 2); // account for the leading/trailing spaces inside the border
 		const maxResultLines = 15;
 
 		const padLine = (line: string): string => {
-			const len = visibleWidth(line);
-			return line + " ".repeat(Math.max(0, width - len));
+			const fitted = visibleWidth(line) > width ? truncateToWidth(line, width, "", true) : line;
+			return fitted + " ".repeat(Math.max(0, width - visibleWidth(fitted)));
 		};
 
-		const boxLine = (content: string): string => {
-			const len = visibleWidth(content);
-			const padding = Math.max(0, boxWidth - 2 - len);
-			return dim("│ ") + content + " ".repeat(padding) + dim(" │");
+		const boxLine = (content: string, ellipsis = ""): string => {
+			const fitted =
+				visibleWidth(content) > contentWidth
+					? truncateToWidth(content, contentWidth, ellipsis, true)
+					: content;
+			const padding = Math.max(0, contentWidth - visibleWidth(fitted));
+			return dim("│ ") + fitted + " ".repeat(padding) + dim(" │");
 		};
 
-		// Wrap text to fit in box
 		const wrapText = (text: string, maxWidth: number): string[] => {
-			const wrapped: string[] = [];
-			for (const paragraph of text.split("\n")) {
-				if (paragraph.length <= maxWidth) {
-					wrapped.push(paragraph);
-				} else {
-					let remaining = paragraph;
-					while (remaining.length > maxWidth) {
-						let breakPoint = remaining.lastIndexOf(" ", maxWidth);
-						if (breakPoint === -1) breakPoint = maxWidth;
-						wrapped.push(remaining.slice(0, breakPoint));
-						remaining = remaining.slice(breakPoint + 1);
-					}
-					if (remaining) wrapped.push(remaining);
-				}
-			}
-			return wrapped;
+			if (maxWidth <= 0) return [""];
+
+			return text
+				.split("\n")
+				.flatMap((paragraph) => (paragraph.length === 0 ? [""] : wrapTextWithAnsi(paragraph, maxWidth)));
 		};
 
 		lines.push("");
@@ -183,14 +175,20 @@ class OracleResultComponent {
 		lines.push(padLine(dim("├" + "─".repeat(boxWidth) + "┤")));
 
 		// Show prompt
-		const promptPreview = this.prompt.length > contentWidth - 10
-			? this.prompt.slice(0, contentWidth - 13) + "..."
-			: this.prompt;
-		lines.push(padLine(boxLine(dim("Q: ") + promptPreview)));
+		const qPrefix = dim("Q: ");
+		const promptPreview = truncateToWidth(
+			this.prompt,
+			Math.max(0, contentWidth - visibleWidth(qPrefix)),
+			"…",
+			true
+		);
+		lines.push(padLine(boxLine(qPrefix + promptPreview)));
 		lines.push(padLine(dim("├" + "─".repeat(boxWidth) + "┤")));
 
 		// Show result with scrolling
 		const resultLines = wrapText(this.result, contentWidth);
+		const maxScrollOffset = Math.max(0, resultLines.length - maxResultLines);
+		this.scrollOffset = Math.min(this.scrollOffset, maxScrollOffset);
 		const visibleLines = resultLines.slice(this.scrollOffset, this.scrollOffset + maxResultLines);
 
 		for (const line of visibleLines) {
@@ -298,17 +296,21 @@ class ThinkingLevelPickerComponent {
 		}
 
 		const lines: string[] = [];
-		const boxWidth = Math.min(60, width - 4);
+		const boxWidth = Math.max(1, Math.min(60, width - 4));
+		const contentWidth = Math.max(0, boxWidth - 2);
 
 		const padLine = (line: string): string => {
-			const len = visibleWidth(line);
-			return line + " ".repeat(Math.max(0, width - len));
+			const fitted = visibleWidth(line) > width ? truncateToWidth(line, width, "", true) : line;
+			return fitted + " ".repeat(Math.max(0, width - visibleWidth(fitted)));
 		};
 
-		const boxLine = (content: string): string => {
-			const len = visibleWidth(content);
-			const padding = Math.max(0, boxWidth - 2 - len);
-			return dim("│ ") + content + " ".repeat(padding) + dim(" │");
+		const boxLine = (content: string, ellipsis = "…"): string => {
+			const fitted =
+				visibleWidth(content) > contentWidth
+					? truncateToWidth(content, contentWidth, ellipsis, true)
+					: content;
+			const padding = Math.max(0, contentWidth - visibleWidth(fitted));
+			return dim("│ ") + fitted + " ".repeat(padding) + dim(" │");
 		};
 
 		lines.push("");
@@ -320,11 +322,14 @@ class ThinkingLevelPickerComponent {
 		lines.push(padLine(boxLine(dim("Model: ") + cyan(this.modelName))));
 
 		// Prompt preview
-		const maxPromptLen = boxWidth - 12;
-		const promptPreview = this.prompt.length > maxPromptLen
-			? this.prompt.slice(0, maxPromptLen - 3) + "..."
-			: this.prompt;
-		lines.push(padLine(boxLine(dim("Prompt: ") + promptPreview)));
+		const promptPrefix = dim("Prompt: ");
+		const promptPreview = truncateToWidth(
+			this.prompt,
+			Math.max(0, contentWidth - visibleWidth(promptPrefix)),
+			"…",
+			true
+		);
+		lines.push(padLine(boxLine(promptPrefix + promptPreview)));
 
 		lines.push(padLine(dim("├" + "─".repeat(boxWidth) + "┤")));
 		lines.push(padLine(boxLine(dim("↑↓/jk navigate • 1-5 quick select • Enter send"))));
@@ -416,17 +421,21 @@ class ModelPickerComponent {
 		}
 
 		const lines: string[] = [];
-		const boxWidth = Math.min(60, width - 4);
+		const boxWidth = Math.max(1, Math.min(60, width - 4));
+		const contentWidth = Math.max(0, boxWidth - 2);
 
 		const padLine = (line: string): string => {
-			const len = visibleWidth(line);
-			return line + " ".repeat(Math.max(0, width - len));
+			const fitted = visibleWidth(line) > width ? truncateToWidth(line, width, "", true) : line;
+			return fitted + " ".repeat(Math.max(0, width - visibleWidth(fitted)));
 		};
 
-		const boxLine = (content: string): string => {
-			const len = visibleWidth(content);
-			const padding = Math.max(0, boxWidth - 2 - len);
-			return dim("│ ") + content + " ".repeat(padding) + dim(" │");
+		const boxLine = (content: string, ellipsis = "…"): string => {
+			const fitted =
+				visibleWidth(content) > contentWidth
+					? truncateToWidth(content, contentWidth, ellipsis, true)
+					: content;
+			const padding = Math.max(0, contentWidth - visibleWidth(fitted));
+			return dim("│ ") + fitted + " ".repeat(padding) + dim(" │");
 		};
 
 		lines.push("");
@@ -435,11 +444,14 @@ class ModelPickerComponent {
 		lines.push(padLine(dim("├" + "─".repeat(boxWidth) + "┤")));
 
 		// Prompt preview
-		const maxPromptLen = boxWidth - 12;
-		const promptPreview = this.prompt.length > maxPromptLen
-			? this.prompt.slice(0, maxPromptLen - 3) + "..."
-			: this.prompt;
-		lines.push(padLine(boxLine(dim("Prompt: ") + promptPreview)));
+		const promptPrefix = dim("Prompt: ");
+		const promptPreview = truncateToWidth(
+			this.prompt,
+			Math.max(0, contentWidth - visibleWidth(promptPrefix)),
+			"…",
+			true
+		);
+		lines.push(padLine(boxLine(promptPrefix + promptPreview)));
 
 		// Files
 		if (this.files.length > 0) {

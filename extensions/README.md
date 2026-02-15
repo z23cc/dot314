@@ -150,7 +150,7 @@
 
 - ◐ [`oracle.ts`](oracle.ts) (upstream: [hjanuschka/shitty-extensions](https://github.com/hjanuschka/shitty-extensions/tree/main))
   - `/oracle` queries an alternate model for a second opinion, with optional file inclusion (`-f`) and injection into the current conversation
-  - This version adds a thinking-level picker
+  - This version adds a thinking-level picker and fixes text-overflow crashes (CJK-safe wrapping)
 
 - ◐ [`skill-palette/`](skill-palette/) (upstream: [pi-skill-palette](https://github.com/nicobailon/pi-skill-palette))
   - Skill command palette (`/skill`)
