@@ -4,19 +4,47 @@ import path from "node:path";
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
-const REWIND_EXTENSION_PATH = path.join(os.homedir(), ".pi", "agent", "extensions", "rewind", "index.ts");
+const AGENT_DIR = path.join(os.homedir(), ".pi", "agent");
 
-async function requestConversationOnlyForkWhenRewindIsInstalled(pi: ExtensionAPI): Promise<boolean> {
+const REWIND_EXTENSION_DIR = path.join(AGENT_DIR, "extensions", "rewind");
+const REWIND_EXTENSION_CANDIDATES = [
+  "index.ts",
+  "index.js",
+  path.join("dist", "index.js"),
+  path.join("build", "index.js"),
+  "package.json",
+];
+
+async function isRewindInstalled(): Promise<boolean> {
   try {
-    await access(REWIND_EXTENSION_PATH);
-    pi.events.emit("rewind:fork-preference", {
-      mode: "conversation-only",
-      source: "fork-from-first",
-    });
-    return true;
+    await access(REWIND_EXTENSION_DIR);
   } catch {
     return false;
   }
+
+  for (const relPath of REWIND_EXTENSION_CANDIDATES) {
+    try {
+      await access(path.join(REWIND_EXTENSION_DIR, relPath));
+      return true;
+    } catch {
+      // keep looking
+    }
+  }
+
+  return false;
+}
+
+async function requestConversationOnlyForkWhenRewindIsInstalled(pi: ExtensionAPI): Promise<boolean> {
+  if (!(await isRewindInstalled())) {
+    return false;
+  }
+
+  pi.events.emit("rewind:fork-preference", {
+    mode: "conversation-only",
+    source: "fork-from-first",
+  });
+
+  return true;
 }
 
 export default function (pi: ExtensionAPI) {
