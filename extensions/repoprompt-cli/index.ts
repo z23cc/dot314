@@ -4,6 +4,15 @@ import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import * as Diff from "diff";
 
+import { loadConfig } from "./config.js";
+import { RP_READCACHE_CUSTOM_TYPE, SCOPE_FULL, scopeRange } from "./readcache/constants.js";
+import { buildInvalidationV1 } from "./readcache/meta.js";
+import { getStoreStats, pruneObjectsOlderThan } from "./readcache/object-store.js";
+import { readFileWithCache } from "./readcache/read-file.js";
+import { clearReplayRuntimeState, createReplayRuntimeState } from "./readcache/replay.js";
+import { resolveReadFilePath } from "./readcache/resolve.js";
+import type { RpReadcacheMetaV1, ScopeKey } from "./readcache/types.js";
+
 let parseBash: ((input: string) => any) | null = null;
 let justBashLoadPromise: Promise<void> | null = null;
 let justBashLoadDone = false;
@@ -170,6 +179,42 @@ function hasSemicolonOutsideQuotes(script: string): boolean {
     }
 
     if (!inSingleQuote && !inDoubleQuote && ch === ";") {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function hasPipeOutsideQuotes(script: string): boolean {
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let escaped = false;
+
+  for (let i = 0; i < script.length; i += 1) {
+    const ch = script[i];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+
+    if (!inDoubleQuote && ch === "'") {
+      inSingleQuote = !inSingleQuote;
+      continue;
+    }
+
+    if (!inSingleQuote && ch === '"') {
+      inDoubleQuote = !inDoubleQuote;
+      continue;
+    }
+
+    if (!inSingleQuote && !inDoubleQuote && ch === "|") {
       return true;
     }
   }
@@ -432,6 +477,306 @@ function looksLikeEditCommand(cmd: string): boolean {
     if (normalized === "edit" || normalized.startsWith("edit ")) return true;
     return normalized.startsWith("call ") && normalized.includes("apply_edits");
   });
+}
+
+type ParsedReadFileRequest = {
+  cmdToRun: string;
+  path: string;
+  startLine?: number;
+  limit?: number;
+  bypassCache: boolean;
+
+  // Whether it is safe to apply readcache substitution (marker/diff) for this request
+  // When false, we may still rewrite cmdToRun to strip wrapper-only args like bypass_cache=true
+  cacheable: boolean;
+};
+
+function parseReadFileRequest(cmd: string): ParsedReadFileRequest | null {
+  const parsed = parseCommandChain(cmd);
+
+  // Only handle simple, single-invocation commands to avoid surprising behavior
+  if (parsed.hasSemicolonOutsideQuotes) return null;
+
+  let commandNameRaw: string;
+  let commandName: string;
+  let rawArgs: string[];
+
+  if (parsed.invocations.length === 1) {
+    const invocation = parsed.invocations[0];
+    if (!invocation) return null;
+    if (invocation.pipelineLength !== 1) return null;
+
+    commandNameRaw = invocation.commandNameRaw;
+    commandName = invocation.commandName;
+    rawArgs = invocation.args;
+  } else if (parsed.invocations.length === 0 && parsed.commands.length === 1) {
+    const commandText = parsed.commands[0]?.trim() ?? "";
+    if (!commandText) return null;
+
+    // Legacy parsing fallback (just-bash unavailable): only attempt for trivially-tokenizable, single commands
+    if (hasPipeOutsideQuotes(commandText)) return null;
+    if (commandText.includes("\\")) return null;
+    if (commandText.includes("\"") || commandText.includes("'") || commandText.includes("`")) return null;
+
+    const parts = commandText.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return null;
+
+    commandNameRaw = parts[0] ?? "";
+    commandName = commandBaseName(commandNameRaw);
+    rawArgs = parts.slice(1);
+  } else {
+    return null;
+  }
+
+  if (commandName !== "read" && commandName !== "cat" && commandName !== "read_file") {
+    return null;
+  }
+
+  let inputPath: string | undefined;
+  let startLine: number | undefined;
+  let limit: number | undefined;
+  let bypassCache = false;
+  let sawUnknownArg = false;
+
+  const getNumber = (value: string): number | undefined => {
+    if (!/^-?\d+$/.test(value.trim())) {
+      return undefined;
+    }
+
+    const parsedInt = Number.parseInt(value, 10);
+    return Number.isFinite(parsedInt) ? parsedInt : undefined;
+  };
+
+  const normalizeKey = (raw: string): string => {
+    const trimmed = raw.trim().toLowerCase();
+    const withoutDashes = trimmed.replace(/^--+/, "");
+    return withoutDashes.replace(/-/g, "_");
+  };
+
+  const parseSliceSuffix = (value: string): { basePath: string; startLine: number; limit?: number } | null => {
+    // Slice notation: path:start-end OR path:start
+    // Example: file.swift:10-50
+    const match = /^(.*?):(\d+)(?:-(\d+))?$/.exec(value);
+    if (!match) return null;
+
+    const basePath = match[1];
+    const start = Number.parseInt(match[2] ?? "", 10);
+    const end = match[3] ? Number.parseInt(match[3], 10) : undefined;
+
+    if (!basePath || !Number.isFinite(start) || start <= 0) {
+      return null;
+    }
+
+    if (end === undefined) {
+      return { basePath, startLine: start };
+    }
+
+    if (!Number.isFinite(end) || end < start) {
+      return null;
+    }
+
+    return { basePath, startLine: start, limit: end - start + 1 };
+  };
+
+  const filteredArgs: string[] = [];
+
+  for (let i = 0; i < rawArgs.length; i += 1) {
+    const arg = rawArgs[i] ?? "";
+
+    // Flags: --start-line 10, --limit 50, also support --start-line=10
+    if (arg.startsWith("--")) {
+      const eqIdx = arg.indexOf("=");
+      if (eqIdx > 0) {
+        const rawKey = arg.slice(0, eqIdx);
+        const key = normalizeKey(rawKey);
+        const value = arg.slice(eqIdx + 1).trim();
+
+        if (key === "start_line") {
+          const parsedNumber = getNumber(value);
+          if (parsedNumber === undefined) {
+            sawUnknownArg = true;
+          } else {
+            startLine = parsedNumber;
+          }
+          filteredArgs.push(arg);
+          continue;
+        }
+
+        if (key === "limit") {
+          const parsedNumber = getNumber(value);
+          if (parsedNumber === undefined) {
+            sawUnknownArg = true;
+          } else {
+            limit = parsedNumber;
+          }
+          filteredArgs.push(arg);
+          continue;
+        }
+
+        sawUnknownArg = true;
+        filteredArgs.push(arg);
+        continue;
+      }
+
+      const key = normalizeKey(arg);
+      if (key === "start_line") {
+        const value = rawArgs[i + 1];
+        if (typeof value === "string") {
+          const parsedNumber = getNumber(value);
+          if (parsedNumber === undefined) {
+            sawUnknownArg = true;
+          } else {
+            startLine = parsedNumber;
+          }
+          i += 1;
+          filteredArgs.push(arg, value);
+          continue;
+        }
+      }
+
+      if (key === "limit") {
+        const value = rawArgs[i + 1];
+        if (typeof value === "string") {
+          const parsedNumber = getNumber(value);
+          if (parsedNumber === undefined) {
+            sawUnknownArg = true;
+          } else {
+            limit = parsedNumber;
+          }
+          i += 1;
+          filteredArgs.push(arg, value);
+          continue;
+        }
+      }
+
+      // Unknown flag: keep it
+      sawUnknownArg = true;
+      filteredArgs.push(arg);
+      continue;
+    }
+
+    // key=value pairs (rp-cli supports key=value and also dash->underscore)
+    const eqIdx = arg.indexOf("=");
+    if (eqIdx > 0) {
+      const key = normalizeKey(arg.slice(0, eqIdx));
+      const value = arg.slice(eqIdx + 1).trim();
+
+      // wrapper-only knob (do not forward)
+      if (key === "bypass_cache") {
+        bypassCache = value === "true" || value === "1";
+        continue;
+      }
+
+      if (key === "path") {
+        const slice = parseSliceSuffix(value);
+        if (slice) {
+          inputPath = slice.basePath;
+          if (startLine === undefined) startLine = slice.startLine;
+          if (limit === undefined && slice.limit !== undefined) limit = slice.limit;
+        } else {
+          inputPath = value;
+        }
+
+        filteredArgs.push(arg);
+        continue;
+      }
+
+      if (key === "start_line") {
+        const parsedNumber = getNumber(value);
+        if (parsedNumber === undefined) {
+          sawUnknownArg = true;
+        } else {
+          startLine = parsedNumber;
+        }
+        filteredArgs.push(arg);
+        continue;
+      }
+
+      if (key === "limit") {
+        const parsedNumber = getNumber(value);
+        if (parsedNumber === undefined) {
+          sawUnknownArg = true;
+        } else {
+          limit = parsedNumber;
+        }
+        filteredArgs.push(arg);
+        continue;
+      }
+
+      sawUnknownArg = true;
+      filteredArgs.push(arg);
+      continue;
+    }
+
+    // positional path
+    if (!inputPath && !arg.startsWith("-")) {
+      const slice = parseSliceSuffix(arg);
+      if (slice) {
+        inputPath = slice.basePath;
+        if (startLine === undefined) startLine = slice.startLine;
+        if (limit === undefined && slice.limit !== undefined) limit = slice.limit;
+      } else {
+        inputPath = arg;
+      }
+
+      filteredArgs.push(arg);
+      continue;
+    }
+
+    // positional start/limit (shorthand: read <path> [start] [limit])
+    if (inputPath && startLine === undefined) {
+      const startCandidate = getNumber(arg);
+      if (typeof startCandidate === "number") {
+        startLine = startCandidate;
+        filteredArgs.push(arg);
+        continue;
+      }
+    }
+
+    if (inputPath && startLine !== undefined && limit === undefined) {
+      const limitCandidate = getNumber(arg);
+      if (typeof limitCandidate === "number") {
+        limit = limitCandidate;
+        filteredArgs.push(arg);
+        continue;
+      }
+    }
+
+    sawUnknownArg = true;
+    filteredArgs.push(arg);
+  }
+
+  if (!inputPath) {
+    return null;
+  }
+
+  let cmdToRun = [commandNameRaw, ...filteredArgs].filter(Boolean).join(" ");
+
+  // Canonicalize into rp-cli's documented read shorthand syntax so that equivalent forms behave consistently
+  // (especially for bypass_cache=true tests)
+  const safePathForRewrite = /^\S+$/.test(inputPath);
+  if (!sawUnknownArg && safePathForRewrite) {
+    if (commandName === "read_file") {
+      const parts: string[] = [commandNameRaw, `path=${inputPath}`];
+      if (typeof startLine === "number") parts.push(`start_line=${startLine}`);
+      if (typeof limit === "number") parts.push(`limit=${limit}`);
+      cmdToRun = parts.join(" ");
+    } else {
+      const parts: string[] = [commandNameRaw, inputPath];
+      if (typeof startLine === "number") parts.push(String(startLine));
+      if (typeof limit === "number") parts.push(String(limit));
+      cmdToRun = parts.join(" ");
+    }
+  }
+
+  return {
+    cmdToRun,
+    path: inputPath,
+    ...(typeof startLine === "number" ? { startLine } : {}),
+    ...(typeof limit === "number" ? { limit } : {}),
+    bypassCache,
+    cacheable: !sawUnknownArg,
+  };
 }
 
 function parseLeadingInt(text: string): number | undefined {
@@ -807,6 +1152,15 @@ const COLLAPSED_MAX_LINES = 15;
 const COLLAPSED_MAX_CHARS = 2000;
 
 export default function (pi: ExtensionAPI) {
+  let config = loadConfig();
+
+  // Replay-aware read_file caching state (optional; guarded by config.readcacheReadFile)
+  const readcacheRuntimeState = createReplayRuntimeState();
+
+  const clearReadcacheCaches = (): void => {
+    clearReplayRuntimeState(readcacheRuntimeState);
+  };
+
   let boundWindowId: number | undefined;
   let boundTab: string | undefined;
 
@@ -861,12 +1215,49 @@ export default function (pi: ExtensionAPI) {
     }
   };
 
-  pi.on("session_start", async (_event, ctx) => reconstructBinding(ctx));
-  pi.on("session_switch", async (_event, ctx) => reconstructBinding(ctx));
+  pi.on("session_start", async (_event, ctx) => {
+    config = loadConfig();
+    clearReadcacheCaches();
+    if (config.readcacheReadFile === true) {
+      void pruneObjectsOlderThan(ctx.cwd).catch(() => {
+        // Fail-open
+      });
+    }
+    reconstructBinding(ctx);
+  });
+
+  pi.on("session_switch", async (_event, ctx) => {
+    config = loadConfig();
+    clearReadcacheCaches();
+    reconstructBinding(ctx);
+  });
+
   // session_fork is the current event name; keep session_branch for backwards compatibility
-  pi.on("session_fork", async (_event, ctx) => reconstructBinding(ctx));
-  pi.on("session_branch", async (_event, ctx) => reconstructBinding(ctx));
-  pi.on("session_tree", async (_event, ctx) => reconstructBinding(ctx));
+  pi.on("session_fork", async (_event, ctx) => {
+    config = loadConfig();
+    clearReadcacheCaches();
+    reconstructBinding(ctx);
+  });
+
+  pi.on("session_branch", async (_event, ctx) => {
+    config = loadConfig();
+    clearReadcacheCaches();
+    reconstructBinding(ctx);
+  });
+
+  pi.on("session_tree", async (_event, ctx) => {
+    config = loadConfig();
+    clearReadcacheCaches();
+    reconstructBinding(ctx);
+  });
+
+  pi.on("session_compact", async () => {
+    clearReadcacheCaches();
+  });
+
+  pi.on("session_shutdown", async () => {
+    clearReadcacheCaches();
+  });
 
   pi.registerCommand("rpbind", {
     description: "Bind rp_exec to RepoPrompt: /rpbind <window_id> <tab>",
@@ -879,6 +1270,106 @@ export default function (pi: ExtensionAPI) {
 
       persistBinding(parsed.windowId, parsed.tab);
       ctx.ui.notify(`Bound rp_exec → window ${boundWindowId}, tab "${boundTab}"`, "success");
+    },
+  });
+
+  pi.registerCommand("rpcli-readcache-status", {
+    description: "Show repoprompt-cli read_file cache status",
+    handler: async (_args, ctx) => {
+      config = loadConfig();
+
+      let msg = "repoprompt-cli read_file cache\n";
+      msg += "──────────────────────────\n";
+      msg += `Enabled: ${config.readcacheReadFile === true ? "✓" : "✗"}\n`;
+
+      if (config.readcacheReadFile !== true) {
+        msg += "\nEnable by creating ~/.pi/agent/extensions/repoprompt-cli/config.json\n";
+        msg += "\nwith:\n  { \"readcacheReadFile\": true }\n";
+        ctx.ui.notify(msg, "info");
+        return;
+      }
+
+      try {
+        const stats = await getStoreStats(ctx.cwd);
+        msg += `\nObject store (under ${ctx.cwd}/.pi/readcache):\n`;
+        msg += `  Objects: ${stats.objects}\n`;
+        msg += `  Bytes: ${stats.bytes}\n`;
+      } catch {
+        msg += "\nObject store: unavailable\n";
+      }
+
+      msg += "\nNotes:\n";
+      msg += "- Cache applies only to simple rp_exec reads (read/cat/read_file)\n";
+      msg += "- Use bypass_cache=true in the read command to force baseline output\n";
+
+      ctx.ui.notify(msg, "info");
+    },
+  });
+
+  pi.registerCommand("rpcli-readcache-refresh", {
+    description: "Invalidate repoprompt-cli read_file cache trust for a path and optional line range",
+    handler: async (args, ctx) => {
+      config = loadConfig();
+
+      if (config.readcacheReadFile !== true) {
+        ctx.ui.notify("readcacheReadFile is disabled in config", "error");
+        return;
+      }
+
+      const trimmed = args.trim();
+      if (!trimmed) {
+        ctx.ui.notify("Usage: /rpcli-readcache-refresh <path> [start-end]", "error");
+        return;
+      }
+
+      const parts = trimmed.split(/\s+/);
+      const pathInput = parts[0];
+      const rangeInput = parts[1];
+
+      if (!pathInput) {
+        ctx.ui.notify("Usage: /rpcli-readcache-refresh <path> [start-end]", "error");
+        return;
+      }
+
+      const windowId = boundWindowId;
+      const tab = boundTab;
+
+      if (windowId === undefined) {
+        ctx.ui.notify("rp_exec is not bound. Bind first via /rpbind or rp_bind", "error");
+        return;
+      }
+
+      let scopeKey: ScopeKey = SCOPE_FULL;
+      if (rangeInput) {
+        const match = rangeInput.match(/^(\d+)-(\d+)$/);
+        if (!match) {
+          ctx.ui.notify("Invalid range. Use <start-end> like 1-120", "error");
+          return;
+        }
+
+        const start = parseInt(match[1] ?? "", 10);
+        const end = parseInt(match[2] ?? "", 10);
+        if (!Number.isFinite(start) || !Number.isFinite(end) || start <= 0 || end < start) {
+          ctx.ui.notify("Invalid range. Use <start-end> like 1-120", "error");
+          return;
+        }
+
+        scopeKey = scopeRange(start, end);
+      }
+
+      const resolved = await resolveReadFilePath(pi, pathInput, ctx.cwd, windowId, tab);
+      if (!resolved.absolutePath) {
+        ctx.ui.notify(`Could not resolve path: ${pathInput}`, "error");
+        return;
+      }
+
+      pi.appendEntry(RP_READCACHE_CUSTOM_TYPE, buildInvalidationV1(resolved.absolutePath, scopeKey));
+      clearReadcacheCaches();
+
+      ctx.ui.notify(
+        `Invalidated readcache for ${resolved.absolutePath}` + (scopeKey === SCOPE_FULL ? "" : ` (${scopeKey})`),
+        "info"
+      );
     },
   });
 
@@ -924,6 +1415,7 @@ export default function (pi: ExtensionAPI) {
 
       if (!allowDelete && looksLikeDeleteCommand(params.cmd)) {
         return {
+          isError: true,
           content: [
             {
               type: "text",
@@ -936,6 +1428,7 @@ export default function (pi: ExtensionAPI) {
 
       if (!allowWorkspaceSwitchInPlace && looksLikeWorkspaceSwitchInPlace(params.cmd)) {
         return {
+          isError: true,
           content: [
             {
               type: "text",
@@ -965,13 +1458,21 @@ export default function (pi: ExtensionAPI) {
         };
       }
 
+      // Parse read-like commands to:
+      // - detect cacheable reads (when enabled)
+      // - strip wrapper-only args like bypass_cache=true even when caching is disabled
+      //   (so agents can safely use bypass_cache in instructions regardless of config)
+      const readRequest = parseReadFileRequest(params.cmd);
+
+      const cmdToRun = readRequest ? readRequest.cmdToRun : params.cmd;
+
       const rpArgs: string[] = [];
       if (windowId !== undefined) rpArgs.push("-w", String(windowId));
       if (tab !== undefined) rpArgs.push("-t", tab);
       if (quiet) rpArgs.push("-q");
       if (rawJson) rpArgs.push("--raw-json");
       if (failFast) rpArgs.push("--fail-fast");
-      rpArgs.push("-e", params.cmd);
+      rpArgs.push("-e", cmdToRun);
 
       if (windowId === undefined || tab === undefined) {
         onUpdate({
@@ -998,7 +1499,44 @@ export default function (pi: ExtensionAPI) {
 
       const combinedOutput = [stdout, stderr].filter(Boolean).join("\n").trim();
 
-      const rawOutput = execError ? `rp-cli execution failed: ${execError}` : combinedOutput;
+      let rawOutput = execError ? `rp-cli execution failed: ${execError}` : combinedOutput;
+
+      let rpReadcache: RpReadcacheMetaV1 | null = null;
+
+      if (
+          config.readcacheReadFile === true &&
+          readRequest !== null &&
+          readRequest.cacheable === true &&
+          !execError &&
+        exitCode === 0 &&
+        windowId !== undefined &&
+        tab !== undefined
+      ) {
+        try {
+          const cached = await readFileWithCache(
+            pi,
+            {
+              path: readRequest.path,
+              ...(typeof readRequest.startLine === "number" ? { start_line: readRequest.startLine } : {}),
+              ...(typeof readRequest.limit === "number" ? { limit: readRequest.limit } : {}),
+              ...(readRequest.bypassCache ? { bypass_cache: true } : {}),
+            },
+            ctx,
+            readcacheRuntimeState,
+            windowId,
+            tab,
+            signal
+          );
+
+          rpReadcache = cached.meta;
+
+          if (typeof cached.outputText === "string" && cached.outputText.length > 0) {
+            rawOutput = cached.outputText;
+          }
+        } catch {
+          // Fail-open: caching must never break the baseline command output
+        }
+      }
 
       const editNoop =
         !execError &&
@@ -1007,6 +1545,8 @@ export default function (pi: ExtensionAPI) {
         looksLikeNoopEditOutput(rawOutput);
 
       const shouldFailNoopEdit = editNoop && failOnNoopEdits;
+      const commandFailed = Boolean(execError) || exitCode !== 0;
+      const shouldError = commandFailed || shouldFailNoopEdit;
 
       let outputForUser = rawOutput;
       if (editNoop) {
@@ -1036,7 +1576,7 @@ export default function (pi: ExtensionAPI) {
       const finalText = truncatedOutput.length > 0 ? truncatedOutput : "(no output)";
 
       return {
-        isError: shouldFailNoopEdit,
+        isError: shouldError,
         content: [{ type: "text", text: finalText }],
         details: {
           cmd: params.cmd,
@@ -1054,6 +1594,7 @@ export default function (pi: ExtensionAPI) {
           execError,
           editNoop,
           shouldFailNoopEdit,
+          rpReadcache: rpReadcache ?? undefined,
         },
       };
     },

@@ -167,6 +167,8 @@ Create `~/.pi/agent/extensions/repoprompt-mcp.json`:
   "confirmDeletes": true,
   "confirmEdits": false,
 
+  "readcacheReadFile": false,
+
   "collapsedMaxLines": 15,
   "suppressHostDisconnectedLog": true
 }
@@ -183,8 +185,19 @@ Options:
 | `persistBinding` | `true` | Persist binding in Pi session history |
 | `confirmDeletes` | `true` | Block delete operations unless `allowDelete: true` |
 | `confirmEdits` | `false` | Block edit-like operations unless `confirmEdits: true` |
+| `readcacheReadFile` | `false` | Enable [pi-readcache](https://github.com/Gurpartap/pi-readcache)-like caching for RepoPrompt `read_file` calls (returns unchanged markers/diffs on repeat reads to save on tokens and prevent context bloat) |
 | `collapsedMaxLines` | `15` | Lines shown in collapsed view |
 | `suppressHostDisconnectedLog` | `true` | Filter noisy stderr from macOS `repoprompt-mcp` (disconnect/retry bootstrap logs) |
+
+Note: when `readcacheReadFile` is enabled, the extension may persist UTF-8 file snapshots to an on-disk content-addressed store under
+`<repo-root>/.pi/readcache/objects` to compute diffs/unchanged markers across calls. Common secret filenames (e.g. `.env*`, `*.pem`) are excluded,
+but this is best-effort
+
+## Readcache gotchas
+
+- `raw: true` disables readcache (and rendering). Don't use unless debugging
+- Need full content? use `bypass_cache: true` in `read_file` args
+- Multi-root: use absolute or specific relative paths (MCP `read_file` has no `RootName:` disambiguation)
 
 ## Troubleshooting
 

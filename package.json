@@ -35,7 +35,7 @@
       "./extensions/poly-notify/index.ts",
       "./extensions/oracle.ts",
       "./extensions/plan-mode.ts",
-      "./extensions/repoprompt-cli.ts",
+      "./extensions/repoprompt-cli/index.ts",
       "./extensions/repoprompt-mcp/src/index.ts",
       "./extensions/rp-native-tools-lock/index.ts",
       "./extensions/sandbox/index.ts",

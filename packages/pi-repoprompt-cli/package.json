@@ -1,6 +1,6 @@
 {
   "name": "pi-repoprompt-cli",
-  "version": "0.2.0",
+  "version": "0.2.6",
   "description": "Integrates RepoPrompt with Pi via RepoPrompt's `rp-cli` executable",
   "keywords": ["pi-package", "pi", "pi-coding-agent", "repoprompt"],
   "license": "MIT",
@@ -14,7 +14,7 @@
   },
   "homepage": "https://github.com/w-winter/dot314#readme",
   "pi": {
-    "extensions": ["extensions/repoprompt-cli.ts"]
+    "extensions": ["extensions/repoprompt-cli/index.ts"]
   },
   "dependencies": {
     "diff": "^7.0.0",
@@ -31,7 +31,30 @@
   "files": ["extensions/**", "README.md", "LICENSE", "package.json"],
   "dot314Prepack": {
     "copy": [
-      { "from": "../../extensions/repoprompt-cli.ts", "to": "extensions/repoprompt-cli.ts" },
+      {
+        "from": "../../extensions/repoprompt-cli/index.ts",
+        "to": "extensions/repoprompt-cli/index.ts"
+      },
+      {
+        "from": "../../extensions/repoprompt-cli/config.ts",
+        "to": "extensions/repoprompt-cli/config.ts"
+      },
+      {
+        "from": "../../extensions/repoprompt-cli/types.ts",
+        "to": "extensions/repoprompt-cli/types.ts"
+      },
+      {
+        "from": "../../extensions/repoprompt-cli/README.md",
+        "to": "extensions/repoprompt-cli/README.md"
+      },
+      {
+        "from": "../../extensions/repoprompt-cli/config.json.example",
+        "to": "extensions/repoprompt-cli/config.json.example"
+      },
+      {
+        "from": "../../extensions/repoprompt-cli/readcache",
+        "to": "extensions/repoprompt-cli/readcache"
+      },
       { "from": "../../LICENSE", "to": "LICENSE" }
     ]
   }

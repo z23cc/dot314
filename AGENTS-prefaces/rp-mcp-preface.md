@@ -149,6 +149,17 @@ Token-costly—invoke explicitly when user requests or during planning phases, n
 
 ---
 
+## Readcache
+
+`read_file` may return `[readcache: ...]` markers/diffs on repeat reads.
+
+Rules:
+- Don’t use `raw: true` (Pi wrapper flag) unless debugging; it disables readcache/rendering
+- Need full content? rerun `read_file` with `bypass_cache: true`
+- In cases of multi-root ambiguity: use absolute or specific relative paths (MCP `read_file` has no `RootName:rel/path` disambiguation)
+
+---
+
 ## Edit Discipline
 
 - Re-read the target region of a file before editing if: (a) the last read was >2 turns ago, (b) you edited the same file since last reading it, or (c) you switched RP windows since last reading it

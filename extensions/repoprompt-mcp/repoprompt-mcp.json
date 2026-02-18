@@ -5,5 +5,6 @@
   "persistBinding": true,
   "confirmDeletes": true,
   "confirmEdits": false,
-  "collapsedMaxLines": 15
+  "collapsedMaxLines": 15,
+  "readcacheReadFile": false
 }

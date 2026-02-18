@@ -109,7 +109,11 @@ export interface RpConfig {
   
   // Display
   collapsedMaxLines?: number;      // Max lines in collapsed view (default: 15)
+
+  // Optional read_file caching (pi-readcache-like behavior)
+  readcacheReadFile?: boolean;     // When true, wrap read_file with hash/diff/unchanged caching (default: false)
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tool Call Parameters

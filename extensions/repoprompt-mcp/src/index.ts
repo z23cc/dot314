@@ -40,6 +40,14 @@ import { checkGuards, normalizeToolName, isNoopEdit, isEditOperation } from "./g
 import { extractJsonContent, extractTextContent } from "./mcp-json.js";
 import { resolveToolName } from "./tool-names.js";
 
+import { readFileWithCache } from "./readcache/read-file.js";
+import { RP_READCACHE_CUSTOM_TYPE, SCOPE_FULL, scopeRange } from "./readcache/constants.js";
+import { buildInvalidationV1 } from "./readcache/meta.js";
+import { clearReplayRuntimeState, createReplayRuntimeState } from "./readcache/replay.js";
+import type { RpReadcacheMetaV1, ScopeKey } from "./readcache/types.js";
+import { getStoreStats, pruneObjectsOlderThan } from "./readcache/object-store.js";
+import { resolveReadFilePath } from "./readcache/resolve.js";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tool Parameters Schema
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,13 +65,13 @@ const RpToolSchema = Type.Object({
       tab: Type.Optional(Type.String({ description: "Tab name or ID to bind to" })),
     })
   ),
-  
+
   // Safety overrides
   allowDelete: Type.Optional(Type.Boolean({ description: "Allow delete operations (default: false)" })),
   confirmEdits: Type.Optional(
     Type.Boolean({ description: "Confirm edit-like operations (required when confirmEdits is enabled)" })
   ),
-  
+
   // Formatting
   raw: Type.Optional(Type.Boolean({ description: "Return raw output without formatting" })),
 });
@@ -75,15 +83,29 @@ const RpToolSchema = Type.Object({
 export default function repopromptMcp(pi: ExtensionAPI) {
   let config: RpConfig = loadConfig();
   let initPromise: Promise<void> | null = null;
-  
+
+  // Replay-aware read_file caching state (optional; guarded by config.readcacheReadFile)
+  const readcacheRuntimeState = createReplayRuntimeState();
+
+  const clearReadcacheCaches = (): void => {
+    clearReplayRuntimeState(readcacheRuntimeState);
+  };
+
   // ───────────────────────────────────────────────────────────────────────────
   // Lifecycle Events
   // ───────────────────────────────────────────────────────────────────────────
-  
+
   pi.on("session_start", async (_event, ctx) => {
     if (ctx.hasUI) {
       // This extension used to set a status bar item; clear it to avoid persisting stale UI state
       ctx.ui.setStatus("rp", undefined);
+    }
+
+    // Best-effort stale cache pruning (only when readcache is enabled)
+    if (config.readcacheReadFile === true) {
+      void pruneObjectsOlderThan(ctx.cwd).catch(() => {
+        // Fail-open
+      });
     }
 
     // Non-blocking initialization
@@ -99,7 +121,11 @@ export default function repopromptMcp(pi: ExtensionAPI) {
       }
     });
   });
-  
+
+  pi.on("session_compact", async () => {
+    clearReadcacheCaches();
+  });
+
   pi.on("session_shutdown", async () => {
     if (initPromise) {
       try {
@@ -108,18 +134,22 @@ export default function repopromptMcp(pi: ExtensionAPI) {
         // Ignore
       }
     }
+
+    clearReadcacheCaches();
     await resetRpClient();
   });
-  
+
   pi.on("session_switch", async (_event: unknown, ctx: ExtensionContext) => {
+    clearReadcacheCaches();
     restoreBinding(ctx, config);
     if (ctx.hasUI) {
       ctx.ui.setStatus("rp", undefined);
     }
   });
-  
+
   // Restore binding from the current branch on /fork navigation
   pi.on("session_fork", async (_event: unknown, ctx: ExtensionContext) => {
+    clearReadcacheCaches();
     restoreBinding(ctx, config);
     if (ctx.hasUI) {
       ctx.ui.setStatus("rp", undefined);
@@ -128,43 +158,55 @@ export default function repopromptMcp(pi: ExtensionAPI) {
 
   // Backwards compatibility (older pi versions)
   (pi as any).on("session_branch", async (_event: unknown, ctx: ExtensionContext) => {
+    clearReadcacheCaches();
     restoreBinding(ctx, config);
     if (ctx.hasUI) {
       ctx.ui.setStatus("rp", undefined);
     }
   });
-  
+
   pi.on("session_tree", async (_event: unknown, ctx: ExtensionContext) => {
+    clearReadcacheCaches();
     restoreBinding(ctx, config);
     if (ctx.hasUI) {
       ctx.ui.setStatus("rp", undefined);
     }
   });
-  
+
   // ───────────────────────────────────────────────────────────────────────────
   // Commands
   // ───────────────────────────────────────────────────────────────────────────
-  
+
   pi.registerCommand("rp", {
-    description: "RepoPrompt status and commands. Usage: /rp [status|windows|bind [id]]",
+    description: "RepoPrompt status and commands. Usage: /rp [status|windows|bind [id]|readcache-status|readcache-refresh]",
     handler: async (args, ctx) => {
       const parts = args?.trim().split(/\s+/) ?? [];
       const subcommand = parts[0]?.toLowerCase() ?? "status";
 
-      // Allow status/reconnect while disconnected
-      if (subcommand !== "reconnect" && subcommand !== "status") {
+      // Allow status/readcache-status/reconnect while disconnected
+      if (subcommand !== "reconnect" && subcommand !== "status" && subcommand !== "readcache-status" && subcommand !== "readcache_status") {
         await ensureConnected();
       }
-      
+
       switch (subcommand) {
         case "status":
           await showStatus(ctx);
           break;
-        
+
+        case "readcache-status":
+        case "readcache_status":
+          await showReadcacheStatus(ctx);
+          break;
+
+        case "readcache-refresh":
+        case "readcache_refresh":
+          await handleReadcacheRefresh(parts.slice(1), ctx);
+          break;
+
         case "windows":
           await showWindows(ctx);
           break;
-        
+
         case "bind": {
           const windowIdArg = parts[1];
           const tab = windowIdArg ? parts[2] : undefined;
@@ -217,7 +259,7 @@ export default function repopromptMcp(pi: ExtensionAPI) {
           }
           break;
         }
-        
+
         case "reconnect":
           try {
             await resetRpClient();
@@ -231,21 +273,23 @@ export default function repopromptMcp(pi: ExtensionAPI) {
         default:
           ctx.ui.notify(
             "RepoPrompt commands:\n" +
-            "  /rp status       - Show connection and binding status\n" +
-            "  /rp windows      - List available windows\n" +
-            "  /rp bind         - Pick a window to bind (interactive)\n" +
-            "  /rp bind <id>    - Bind to a specific window\n" +
-            "  /rp reconnect    - Reconnect to RepoPrompt",
+            "  /rp status                               - Show connection and binding status\n" +
+            "  /rp windows                              - List available windows\n" +
+            "  /rp bind                                 - Pick a window to bind (interactive)\n" +
+            "  /rp bind <id> [tab]                      - Bind to a specific window\n" +
+            "  /rp reconnect                            - Reconnect to RepoPrompt\n" +
+            "  /rp readcache-status                     - Show read_file cache status\n" +
+            "  /rp readcache-refresh <path> [start-end] - Invalidate cached trust for next read_file",
             "info"
           );
       }
     },
   });
-  
+
   // ───────────────────────────────────────────────────────────────────────────
   // Main Tool Registration
   // ───────────────────────────────────────────────────────────────────────────
-  
+
   pi.registerTool({
     name: "rp",
     label: "RepoPrompt",
@@ -259,13 +303,13 @@ Usage:
   rp({ describe: "tool_name" })        → Show tool parameters
   rp({ call: "tool_name", args: {...}})→ Call a tool
 
-Common tools: read_file, get_file_tree, get_code_structure, file_search, 
+Common tools: read_file, get_file_tree, get_code_structure, file_search,
 apply_edits, manage_selection, workspace_context
 
 Mode priority: call > describe > search > windows > bind > status`,
-    
+
     parameters: RpToolSchema,
-    
+
     async execute(_toolCallId, params: RpToolParams, _signal, onUpdate, _ctx) {
       // Provide a no-op if onUpdate is undefined
       const safeOnUpdate = onUpdate ?? (() => {});
@@ -277,7 +321,7 @@ Mode priority: call > describe > search > windows > bind > status`,
 
       // Mode resolution: call > describe > search > windows > bind > status
       if (params.call) {
-        return executeToolCall(params, safeOnUpdate);
+        return executeToolCall(params, safeOnUpdate, _ctx as ExtensionContext | undefined);
       }
       if (params.describe) {
         return executeDescribe(params.describe);
@@ -293,10 +337,10 @@ Mode priority: call > describe > search > windows > bind > status`,
       }
       return executeStatus();
     },
-    
+
     renderCall(args: Record<string, unknown>, theme: Theme) {
       let text = theme.fg("toolTitle", theme.bold("rp"));
-      
+
       if (args.call) {
         text += " " + theme.fg("accent", String(args.call));
         if (args.args && typeof args.args === "object") {
@@ -317,7 +361,7 @@ Mode priority: call > describe > search > windows > bind > status`,
       } else {
         text += " " + theme.fg("muted", "status");
       }
-      
+
       // Show binding info
       const binding = getBinding();
       if (binding) {
@@ -326,10 +370,10 @@ Mode priority: call > describe > search > windows > bind > status`,
           text += theme.fg("dim", ` (${binding.workspace})`);
         }
       }
-      
+
       return new Text(text, 0, 0);
     },
-    
+
     renderResult(
       result: { content: Array<{ type: string; text?: string }>; details?: unknown; isError?: boolean },
       options: ToolRenderResultOptions,
@@ -337,32 +381,32 @@ Mode priority: call > describe > search > windows > bind > status`,
     ) {
       const details = (result.details ?? {}) as Record<string, unknown>;
       const mode = details.mode as string | undefined;
-      
+
       // Get text content
       const textContent = result.content
         .filter((c) => c.type === "text")
         .map((c) => c.text || "")
         .join("\n");
-      
+
       // Handle partial/streaming state
       if (options.isPartial) {
         return new Text(theme.fg("warning", "Running…"), 0, 0);
       }
-      
+
       // Handle errors (check both result.isError and details.isError)
       const isError = result.isError || details.isError;
       if (isError) {
         return new Text(theme.fg("error", "✗ " + textContent), 0, 0);
       }
-      
+
       // Handle raw mode
       if (details.raw) {
         return new Text(textContent, 0, 0);
       }
-      
+
       // Success case - apply rendering
       const successPrefix = theme.fg("success", "✓");
-      
+
       // Collapsed view
       if (!options.expanded) {
         const { content, truncated, totalLines } = prepareCollapsedView(
@@ -370,26 +414,26 @@ Mode priority: call > describe > search > windows > bind > status`,
           theme,
           config.collapsedMaxLines
         );
-        
+
         if (truncated) {
           const remaining = totalLines - (config.collapsedMaxLines ?? 15);
           const moreText = theme.fg("muted", `\n… (${remaining} more lines)`);
           return new Text(`${successPrefix}\n${content}${moreText}`, 0, 0);
         }
-        
+
         return new Text(`${successPrefix}\n${content}`, 0, 0);
       }
-      
+
       // Expanded view - full rendering
       const highlighted = renderRpOutput(textContent, theme);
       return new Text(`${successPrefix}\n${highlighted}`, 0, 0);
     },
   });
-  
+
   // ───────────────────────────────────────────────────────────────────────────
   // Helper Functions
   // ───────────────────────────────────────────────────────────────────────────
-  
+
   async function ensureConnected(ctx?: ExtensionContext): Promise<void> {
     if (initPromise) {
       await initPromise;
@@ -513,12 +557,12 @@ Mode priority: call > describe > search > windows > bind > status`,
   async function showStatus(ctx: ExtensionContext): Promise<void> {
     const client = getRpClient();
     const binding = getBinding();
-    
+
     let msg = `RepoPrompt Status\n`;
     msg += `─────────────────\n`;
     msg += `Connection: ${client.isConnected ? "✓ connected" : "✗ disconnected"}\n`;
     msg += `Tools: ${client.tools.length}\n`;
-    
+
     if (binding) {
       msg += `\nBound to:\n`;
       msg += `  Window: ${binding.windowId}\n`;
@@ -539,41 +583,114 @@ Mode priority: call > describe > search > windows > bind > status`,
     } else {
       msg += `\nNot bound to any window. Use /rp bind <id> or rp({ windows: true })\n`;
     }
-    
+
     ctx.ui.notify(msg, "info");
   }
-  
+
+  async function showReadcacheStatus(ctx: ExtensionContext): Promise<void> {
+    let msg = "RepoPrompt read_file cache\n";
+    msg += "──────────────────────\n";
+    msg += `Enabled: ${config.readcacheReadFile === true ? "✓" : "✗"}\n`;
+
+    if (config.readcacheReadFile !== true) {
+      msg += "\nEnable by setting readcacheReadFile=true in:\n";
+      msg += "  ~/.pi/agent/extensions/repoprompt-mcp.json\n";
+      ctx.ui.notify(msg, "info");
+      return;
+    }
+
+    try {
+      const stats = await getStoreStats(ctx.cwd);
+      msg += `\nObject store (under ${ctx.cwd}/.pi/readcache):\n`;
+      msg += `  Objects: ${stats.objects}\n`;
+      msg += `  Bytes: ${stats.bytes}\n`;
+    } catch {
+      msg += "\nObject store: (unavailable)\n";
+    }
+
+    msg += "\nUsage:\n";
+    msg += "  rp({ call: \"read_file\", args: { path: \"...\" } })\n";
+    msg += "  rp({ call: \"read_file\", args: { path: \"...\", bypass_cache: true } })\n";
+    msg += "  /rp readcache-refresh <path> [start-end]\n";
+
+    ctx.ui.notify(msg, "info");
+  }
+
+  async function handleReadcacheRefresh(argsParts: string[], ctx: ExtensionContext): Promise<void> {
+    if (argsParts.length === 0 || !argsParts[0]) {
+      ctx.ui.notify("Usage: /rp readcache-refresh <path> [start-end]", "error");
+      return;
+    }
+
+    const pathInput = argsParts[0];
+    const rangeInput = argsParts[1];
+
+    let scopeKey: ScopeKey = SCOPE_FULL;
+
+    if (rangeInput) {
+      const match = rangeInput.match(/^(\d+)-(\d+)$/);
+      if (!match) {
+        ctx.ui.notify("Invalid range. Use <start-end> like 1-120", "error");
+        return;
+      }
+
+      const start = parseInt(match[1] ?? "", 10);
+      const end = parseInt(match[2] ?? "", 10);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start <= 0 || end < start) {
+        ctx.ui.notify("Invalid range. Use <start-end> like 1-120", "error");
+        return;
+      }
+
+      scopeKey = scopeRange(start, end);
+    }
+
+    const binding = getBinding();
+    const resolved = await resolveReadFilePath(pathInput, ctx.cwd, binding);
+
+    if (!resolved.absolutePath) {
+      ctx.ui.notify(`Could not resolve path: ${pathInput}`, "error");
+      return;
+    }
+
+    pi.appendEntry(RP_READCACHE_CUSTOM_TYPE, buildInvalidationV1(resolved.absolutePath, scopeKey));
+
+    ctx.ui.notify(
+      `Invalidated readcache for ${resolved.absolutePath}` + (scopeKey === SCOPE_FULL ? "" : ` (${scopeKey})`),
+      "info"
+    );
+  }
+
   async function showWindows(ctx: ExtensionContext): Promise<void> {
     const windows = await fetchWindows(pi);
-    
+
     if (windows.length === 0) {
       ctx.ui.notify("No RepoPrompt windows found", "warning");
       return;
     }
-    
+
     let msg = `RepoPrompt Windows\n`;
     msg += `──────────────────\n`;
-    
+
     const binding = getBinding();
     for (const w of windows) {
       const isBound = binding?.windowId === w.id;
       const marker = isBound ? " ← bound" : "";
       msg += `  ${w.id}: ${w.workspace}${marker}\n`;
     }
-    
+
     msg += `\nUse /rp bind <id> to bind to a window`;
-    
+
     ctx.ui.notify(msg, "info");
   }
-  
+
   // ───────────────────────────────────────────────────────────────────────────
   // Tool Execution Modes
   // ───────────────────────────────────────────────────────────────────────────
-  
+
   async function executeStatus() {
     const client = getRpClient();
     const binding = getBinding();
-    
+
     const server = getServerCommand(config);
 
     let text = `RepoPrompt: ${client.status}\n`;
@@ -585,7 +702,7 @@ Mode priority: call > describe > search > windows > bind > status`,
       text += `Server: (not configured / not auto-detected)\n`;
       text += `Hint: configure ~/.pi/agent/extensions/repoprompt-mcp.json or ~/.pi/agent/mcp.json\n`;
     }
-    
+
     if (binding) {
       text += `\nBound to window ${binding.windowId}`;
       if (binding.workspace) text += ` (${binding.workspace})`;
@@ -593,75 +710,75 @@ Mode priority: call > describe > search > windows > bind > status`,
     } else {
       text += `\nNot bound. Use rp({ windows: true }) to list windows, then rp({ bind: { window: <id> } })`;
     }
-    
+
     return {
       content: [{ type: "text" as const, text }],
       details: { mode: "status", status: client.status, error: client.error, binding },
     };
   }
-  
+
   async function executeListWindows() {
     const windows = await fetchWindows(pi);
-    
+
     if (windows.length === 0) {
       return {
         content: [{ type: "text" as const, text: "No RepoPrompt windows found. Is RepoPrompt running?" }],
         details: { mode: "windows", windows: [] },
       };
     }
-    
+
     let text = `## RepoPrompt Windows\n\n`;
-    
+
     const binding = getBinding();
     for (const w of windows) {
       const isBound = binding?.windowId === w.id;
       const marker = isBound ? " ✓" : "";
       text += `- Window \`${w.id}\` • ${w.workspace}${marker}\n`;
     }
-    
+
     text += `\nUse rp({ bind: { window: <id> } }) to bind`;
-    
+
     return {
       content: [{ type: "text" as const, text }],
       details: { mode: "windows", windows, count: windows.length },
     };
   }
-  
+
   async function executeBinding(extensionApi: ExtensionAPI, windowId: number, tab?: string) {
     const binding = await bindToWindow(extensionApi, windowId, tab, config);
-    
+
     let text = `## Bound ✅\n`;
     text += `- **Window**: ${binding.windowId}\n`;
     if (binding.workspace) text += `- **Workspace**: ${binding.workspace}\n`;
     if (binding.tab) text += `- **Tab**: ${binding.tab}\n`;
-    
+
     return {
       content: [{ type: "text" as const, text }],
       details: { mode: "bind", binding },
     };
   }
-  
+
   async function executeSearch(query: string) {
     const client = getRpClient();
     const tools = client.tools;
-    
+
     // Split query into terms and match any
     const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
-    
+
     const matches = tools.filter((tool) => {
       const searchText = `${tool.name} ${tool.description}`.toLowerCase();
       return terms.some((term) => searchText.includes(term));
     });
-    
+
     if (matches.length === 0) {
       return {
         content: [{ type: "text" as const, text: `No tools matching "${query}"` }],
         details: { mode: "search", query, matches: [], count: 0 },
       };
     }
-    
+
     let text = `## Found ${matches.length} tool(s) matching "${query}"\n\n`;
-    
+
     for (const tool of matches) {
       text += `**${tool.name}**\n`;
       text += `  ${tool.description || "(no description)"}\n`;
@@ -670,97 +787,140 @@ Mode priority: call > describe > search > windows > bind > status`,
       }
       text += `\n`;
     }
-    
+
     return {
       content: [{ type: "text" as const, text: text.trim() }],
       details: { mode: "search", query, matches: matches.map((m) => m.name), count: matches.length },
     };
   }
-  
+
   async function executeDescribe(toolName: string) {
     const client = getRpClient();
     const normalized = normalizeToolName(toolName);
-    
+
     const tool = client.tools.find(
       (t) => t.name === toolName || t.name === normalized || normalizeToolName(t.name) === normalized
     );
-    
+
     if (!tool) {
       return {
         content: [{ type: "text" as const, text: `Tool "${toolName}" not found. Use rp({ search: "..." }) to search.` }],
         details: { mode: "describe", error: "not_found", requestedTool: toolName },
       };
     }
-    
+
     let text = `## ${tool.name}\n\n`;
     text += `${tool.description || "(no description)"}\n\n`;
-    
+
     if (tool.inputSchema) {
       text += `### Parameters\n\n`;
       text += formatSchema(tool.inputSchema);
     } else {
       text += `No parameters defined.\n`;
     }
-    
+
     return {
       content: [{ type: "text" as const, text }],
       details: { mode: "describe", tool },
     };
   }
-  
+
   async function executeToolCall(
     params: RpToolParams,
-    onUpdate: (partialResult: { content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }) => void
+    onUpdate: (partialResult: { content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }) => void,
+    ctx?: ExtensionContext
   ) {
     const client = getRpClient();
     const toolName = normalizeToolName(params.call!);
-    
+
     // Validate tool exists
     const tool = client.tools.find(
       (t) => t.name === toolName || normalizeToolName(t.name) === toolName
     );
-    
+
     if (!tool) {
       return {
         content: [{ type: "text" as const, text: `Tool "${params.call}" not found. Use rp({ search: "..." }) to search.` }],
         details: { mode: "call", error: "not_found", requestedTool: params.call },
       };
     }
-    
+
     // Check safety guards
     const guardResult = checkGuards(tool.name, params.args, config, {
       allowDelete: params.allowDelete,
       confirmEdits: params.confirmEdits,
     });
-    
+
     if (!guardResult.allowed) {
       return {
         content: [{ type: "text" as const, text: guardResult.reason! }],
         details: { mode: "call", error: "blocked", tool: tool.name },
       };
     }
-    
-    // Merge binding args with user args
+
+    // Merge binding args with user args (strip wrapper-only args before forwarding)
     const bindingArgs = getBindingArgs();
-    const mergedArgs = { ...(params.args ?? {}), ...bindingArgs };
-    
+
+    const userArgs = (params.args ?? {}) as Record<string, unknown>;
+    const normalizedTool = normalizeToolName(tool.name);
+
+    const bypassCache = normalizedTool === "read_file" && userArgs.bypass_cache === true;
+
+    const forwardedUserArgs: Record<string, unknown> = { ...userArgs };
+    if (normalizedTool === "read_file") {
+      delete forwardedUserArgs.bypass_cache;
+    }
+
+    const mergedArgs = { ...forwardedUserArgs, ...bindingArgs };
+
     onUpdate({
       content: [{ type: "text", text: `Calling ${tool.name}…` }],
       details: { mode: "call", tool: tool.name, status: "running" },
     });
-    
+
+    let rpReadcache: RpReadcacheMetaV1 | null = null;
+
     try {
-      const result = await client.callTool(tool.name, mergedArgs);
-      
+      let result = await client.callTool(tool.name, mergedArgs);
+
+      const shouldReadcache =
+        config.readcacheReadFile === true &&
+        params.raw !== true &&
+        normalizedTool === "read_file" &&
+        typeof userArgs.path === "string" &&
+        ctx !== undefined;
+
+      if (shouldReadcache && !result.isError) {
+        const pathArg = userArgs.path as string;
+        const startLine = parseNumber(userArgs.start_line);
+        const limit = parseNumber(userArgs.limit);
+
+        const cached = await readFileWithCache(
+          result,
+          {
+            path: pathArg,
+            ...(startLine !== undefined ? { start_line: startLine } : {}),
+            ...(limit !== undefined ? { limit } : {}),
+            ...(bypassCache ? { bypass_cache: true } : {}),
+          },
+          ctx,
+          getBinding(),
+          readcacheRuntimeState
+        );
+
+        result = cached.toolResult;
+        rpReadcache = cached.meta;
+      }
+
       // Transform content to text
       const textContent = result.content
         .filter((c): c is { type: "text"; text: string } => c.type === "text")
         .map((c) => c.text)
         .join("\n");
-      
+
       // Check for noop edits
       const editNoop = isEditOperation(tool.name) && isNoopEdit(textContent);
-      
+
       // Build response
       const content = result.content.map((c) => {
         if (c.type === "text") {
@@ -771,7 +931,7 @@ Mode priority: call > describe > search > windows > bind > status`,
         }
         return { type: "text" as const, text: JSON.stringify(c) };
       });
-      
+
       let responseContent = content.length > 0 ? content : [{ type: "text" as const, text: "(empty result)" }];
 
       if (editNoop && !result.isError) {
@@ -789,19 +949,20 @@ Mode priority: call > describe > search > windows > bind > status`,
           args: params.args,
           warning: guardResult.warning,
           editNoop,
+          rpReadcache: rpReadcache ?? undefined,
           raw: params.raw,
         },
         isError: result.isError,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      
+
       // Include schema in error for self-correction
       let errorText = `Failed to call ${tool.name}: ${message}`;
       if (tool.inputSchema) {
         errorText += `\n\nExpected parameters:\n${formatSchema(tool.inputSchema)}`;
       }
-      
+
       return {
         content: [{ type: "text" as const, text: errorText }],
         details: { mode: "call", error: "call_failed", tool: tool.name, message },
@@ -904,7 +1065,7 @@ async function initializeExtension(
 ): Promise<void> {
   // Try to restore binding from session
   restoreBinding(ctx, config);
-  
+
   // Get server command
   const server = getServerCommand(config);
   if (!server) {
@@ -947,12 +1108,12 @@ async function initializeExtension(
       // Non-fatal; if window listing fails we keep the restored binding
     }
   }
-  
+
   // Auto-detect and bind if enabled
   if (config.autoBindOnStart && !getBinding()) {
     try {
       const { binding, windows, ambiguity } = await autoDetectAndBind(pi, config);
-      
+
       if (binding && ctx.hasUI) {
         ctx.ui.notify(
           `RepoPrompt: auto-bound to window ${binding.windowId} (${binding.workspace ?? "unknown"})`,
@@ -998,17 +1159,17 @@ function formatSchema(schema: unknown, indent = ""): string {
   if (!schema || typeof schema !== "object") {
     return `${indent}(no schema)`;
   }
-  
+
   const s = schema as Record<string, unknown>;
-  
+
   if (s.type === "object" && s.properties && typeof s.properties === "object") {
     const props = s.properties as Record<string, unknown>;
     const required = Array.isArray(s.required) ? (s.required as string[]) : [];
-    
+
     if (Object.keys(props).length === 0) {
       return `${indent}(no parameters)`;
     }
-    
+
     const lines: string[] = [];
     for (const [name, propSchema] of Object.entries(props)) {
       const isRequired = required.includes(name);
@@ -1016,11 +1177,11 @@ function formatSchema(schema: unknown, indent = ""): string {
     }
     return lines.join("\n");
   }
-  
+
   if (s.type) {
     return `${indent}(${s.type})`;
   }
-  
+
   return `${indent}(complex schema)`;
 }
 
@@ -1028,30 +1189,30 @@ function formatProperty(name: string, schema: unknown, required: boolean, indent
   if (!schema || typeof schema !== "object") {
     return `${indent}${name}${required ? " *" : ""}`;
   }
-  
+
   const s = schema as Record<string, unknown>;
   const parts: string[] = [];
-  
+
   let typeStr = "";
   if (s.type) {
     typeStr = Array.isArray(s.type) ? s.type.join(" | ") : String(s.type);
   } else if (s.enum) {
     typeStr = "enum";
   }
-  
+
   if (Array.isArray(s.enum)) {
     const enumVals = s.enum.map((v) => JSON.stringify(v)).join(", ");
     typeStr = `enum: ${enumVals}`;
   }
-  
+
   parts.push(`${indent}${name}`);
   if (typeStr) parts.push(`(${typeStr})`);
   if (required) parts.push("*required*");
-  
+
   if (s.description && typeof s.description === "string") {
     parts.push(`- ${s.description}`);
   }
-  
+
   return parts.join(" ");
 }
 
@@ -1059,17 +1220,17 @@ function formatSchemaCompact(schema: unknown): string {
   if (!schema || typeof schema !== "object") {
     return "(no schema)";
   }
-  
+
   const s = schema as Record<string, unknown>;
-  
+
   if (s.type === "object" && s.properties && typeof s.properties === "object") {
     const props = Object.keys(s.properties as object);
     const required = Array.isArray(s.required) ? (s.required as string[]) : [];
-    
+
     return props
       .map((p) => (required.includes(p) ? `${p}*` : p))
       .join(", ");
   }
-  
+
   return "(complex)";
 }

@@ -3,7 +3,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import type { RpConfig } from "./types.js";
 
 // Default configuration
@@ -14,6 +14,9 @@ const DEFAULT_CONFIG: RpConfig = {
   confirmEdits: false,
   collapsedMaxLines: 15,
   suppressHostDisconnectedLog: true,
+
+  // Off by default: preserves RepoPrompt's default read_file behavior unless explicitly enabled
+  readcacheReadFile: false,
 };
 
 // Common locations for MCP config files
@@ -93,7 +96,8 @@ function commandExists(command: string): boolean {
     if (!/^[\w./-]+$/.test(command)) {
       return false;
     }
-    execSync(`which ${command}`, { stdio: "ignore" });
+    const whichCommand = process.platform === "win32" ? "where" : "which";
+    execFileSync(whichCommand, [command], { stdio: "ignore" });
     return true;
   } catch {
     return false;

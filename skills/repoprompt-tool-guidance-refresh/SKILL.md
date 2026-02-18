@@ -75,11 +75,11 @@ This skill has two invocation modes depending on where you are in the upgrade cy
 1. The CLI-related files:
    - **AGENTS prefaces**: `agent/AGENTS-prefaces/rp-cli-preface.md`
    - **Prompts**: `~/.pi/agent/skills/repoprompt-tool-guidance-refresh/rp-cli-prompts/rp-*-cli.md`
-   - **Extension**: `agent/extensions/repoprompt-cli.ts`
+   - **Extension**: `agent/extensions/repoprompt-cli/`
 
 2. Using the diffs as reference, make surgical updates to the preface and prompts.
 
-3. Check whether `repoprompt-cli.ts` encodes assumptions invalidated by the changes. If so, patch minimally.
+3. Check whether `extensions/repoprompt-cli/` encodes assumptions invalidated by the changes. If so, patch minimally.
 
 ## Phase E — Git
 

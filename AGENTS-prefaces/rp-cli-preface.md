@@ -236,6 +236,18 @@ Common calls:
 
 ---
 
+## Readcache
+
+`rp_exec` file reads may return `[readcache: ...]` markers/diffs on repeat reads.
+
+Rules:
+- Don’t use `rawJson=true` unless debugging; it disables readcache
+- Need full content? rerun with `bypass_cache=true`
+- Cache only applies to **single-command** reads (no `&&` / `;` / `|`)
+- In cases of multi-root ambiguity: use absolute or specific relative paths
+
+---
+
 ## Web Access
 
 - `web_search` - for current events/facts (returns synthesis + citations)

@@ -6,6 +6,7 @@ Exposes a single `rp` tool (RepoPrompt MCP proxy) plus `/rp …` commands, with:
 - window/tab binding (auto-detect by `cwd`, optional persistence)
 - output rendering (syntax + diff highlighting)
 - safety guardrails (deletes blocked unless explicitly allowed; optional edit confirmation)
+- optional [Gurpartap/pi-readcache](https://github.com/Gurpartap/pi-readcache)-like caching for RepoPrompt `read_file` results (unchanged markers + diffs) to save on tokens
 
 ## Install
 
@@ -47,6 +48,8 @@ Commands:
 - `/rp windows`
 - `/rp bind`
 - `/rp reconnect`
+- `/rp readcache-status`
+- `/rp readcache-refresh <path> [start-end]`
 
 Tool:
 ```ts
@@ -64,7 +67,8 @@ Create `~/.pi/agent/extensions/repoprompt-mcp.json`:
   "autoBindOnStart": true,
   "persistBinding": true,
   "confirmDeletes": true,
-  "confirmEdits": false
+  "confirmEdits": false,
+  "readcacheReadFile": false
 }
 ```
 
@@ -80,3 +84,9 @@ If the MCP server is not auto-detected, set `command` explicitly:
 (Alternatively, configure RepoPrompt in `~/.pi/agent/mcp.json`)
 
 For more detail, see: `extensions/repoprompt-mcp/README.md` in the dot314 repo.
+
+## Readcache gotchas
+
+- `raw: true` disables readcache (and rendering). Don't use unless debugging
+- Need full content? use `bypass_cache: true` in `read_file` args
+- Multi-root: use absolute or specific relative paths (MCP `read_file` has no `RootName:` disambiguation)
