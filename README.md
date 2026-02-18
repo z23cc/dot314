@@ -255,5 +255,7 @@ See [prompts/README.md](prompts/README.md) for full descriptions.
 
 ### Themes
 
-- ● `violet-dawn.json`
-- ● `violet-dusk.json`
+| | Theme |
+|---|---|
+| ● | `violet-dawn.json` |
+| ● | `violet-dusk.json` |
