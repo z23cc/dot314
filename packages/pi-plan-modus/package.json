@@ -26,7 +26,7 @@
   "scripts": {
     "prepack": "node ../../scripts/pi-package-prepack.mjs"
   },
-  "files": ["extensions/**", "README.md", "LICENSE", "package.json"],
+  "files": ["extensions/**", "README.md", "LICENSE", "THIRD-PARTY-NOTICES.md", "package.json"],
   "dot314Prepack": {
     "copy": [
       { "from": "../../extensions/plan-mode.ts", "to": "extensions/plan-mode.ts" },
