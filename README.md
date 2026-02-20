@@ -1,4 +1,4 @@
-# dot314
+# .π
 
 Extensions, skills, prompts, and themes for [Pi coding agent](https://github.com/badlogic/pi-mono).  There is an emphasis here on making Pi and [RepoPrompt](https://repoprompt.com) co-operate well.
 

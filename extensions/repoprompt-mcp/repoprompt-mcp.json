@@ -6,5 +6,5 @@
   "confirmDeletes": true,
   "confirmEdits": false,
   "collapsedMaxLines": 15,
-  "readcacheReadFile": false
+  "readcacheReadFile": true
 }

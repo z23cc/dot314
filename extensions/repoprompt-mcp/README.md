@@ -16,7 +16,7 @@ Binding is **non-invasive**: it does not change RepoPrompt’s globally active w
 ### Output rendering
 
 - Syntax highlighting for read files' code blocks and for codemaps
-- Diff highlighting for diff blocks
+- Diff highlighting for diff blocks (`delta` when installed, honoring the user's global git/delta color config, graceful fallback otherwise)
 - Markdown-aware styling for headings and lists
 - Collapsed output by default (expand using Pi’s standard UI controls)
 

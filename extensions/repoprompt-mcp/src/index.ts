@@ -3,7 +3,7 @@
 // First-class RepoPrompt integration with:
 // - Auto-detection of matching windows based on cwd
 // - Syntax highlighting for code blocks
-// - Word-level diff highlighting
+// - Delta-powered diff highlighting (with graceful fallback)
 // - Safety guards for destructive operations
 // - Persistent window binding across sessions
 

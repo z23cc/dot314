@@ -1,5 +1,7 @@
 // render.ts - Syntax highlighting and diff rendering for RepoPrompt output
 
+import { spawnSync } from "node:child_process";
+
 import { highlightCode, type Theme } from "@mariozechner/pi-coding-agent";
 import * as Diff from "diff";
 
@@ -74,6 +76,92 @@ export function parseFencedBlocks(text: string): FencedBlock[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Delta Diff Rendering
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ANSI_ESCAPE_RE = /\x1b\[[0-9;]*m/g;
+const DELTA_TIMEOUT_MS = 5000;
+const DELTA_MAX_BUFFER = 8 * 1024 * 1024;
+const DELTA_CACHE_MAX_ENTRIES = 200;
+
+let deltaAvailable: boolean | null = null;
+const deltaDiffCache = new Map<string, string | null>();
+
+function isDeltaInstalled(): boolean {
+  if (deltaAvailable !== null) {
+    return deltaAvailable;
+  }
+
+  const check = spawnSync("delta", ["--version"], {
+    stdio: "ignore",
+    timeout: 1000,
+  });
+
+  deltaAvailable = !check.error && check.status === 0;
+  return deltaAvailable;
+}
+
+function runDelta(diffText: string): string | null {
+  const result = spawnSync("delta", ["--color-only", "--paging=never"], {
+    encoding: "utf-8",
+    input: diffText,
+    timeout: DELTA_TIMEOUT_MS,
+    maxBuffer: DELTA_MAX_BUFFER,
+  });
+
+  if (result.error || result.status !== 0) {
+    return null;
+  }
+
+  return typeof result.stdout === "string" ? result.stdout : null;
+}
+
+function stripSyntheticHeader(deltaOutput: string): string {
+  const outputLines = deltaOutput.split("\n");
+  const bodyStart = outputLines.findIndex((line) => line.replace(ANSI_ESCAPE_RE, "").startsWith("@@"));
+
+  if (bodyStart >= 0) {
+    return outputLines.slice(bodyStart + 1).join("\n");
+  }
+
+  return deltaOutput;
+}
+
+function renderDiffBlockWithDelta(code: string): string | null {
+  if (!isDeltaInstalled()) {
+    return null;
+  }
+
+  const cached = deltaDiffCache.get(code);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  let rendered = runDelta(code);
+
+  if (!rendered) {
+    const syntheticDiff = [
+      "--- a/file",
+      "+++ b/file",
+      "@@ -1,1 +1,1 @@",
+      code,
+    ].join("\n");
+
+    const syntheticRendered = runDelta(syntheticDiff);
+    if (syntheticRendered) {
+      rendered = stripSyntheticHeader(syntheticRendered);
+    }
+  }
+
+  if (deltaDiffCache.size >= DELTA_CACHE_MAX_ENTRIES) {
+    deltaDiffCache.clear();
+  }
+
+  deltaDiffCache.set(code, rendered);
+  return rendered;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Word-Level Diff Highlighting
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -128,6 +216,11 @@ function renderIntraLineDiff(
  * Render diff lines with syntax highlighting (red/green, word-level inverse)
  */
 export function renderDiffBlock(code: string, theme: Theme): string {
+  const deltaRendered = renderDiffBlockWithDelta(code);
+  if (deltaRendered !== null) {
+    return deltaRendered;
+  }
+
   const lines = code.split("\n");
   const result: string[] = [];
 
@@ -378,7 +471,7 @@ export interface RenderOptions {
 
 /**
  * Render RepoPrompt output with syntax highlighting for fenced code blocks.
- * - ```diff blocks get word-level diff highlighting
+ * - ```diff blocks use delta when available, with word-level fallback
  * - Other fenced blocks get syntax highlighting via Pi's highlightCode
  * - Non-fenced content is rendered with markdown-aware styling
  */

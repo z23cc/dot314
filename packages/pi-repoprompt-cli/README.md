@@ -7,6 +7,7 @@ Provides two tools:
 - `rp_exec` — run `rp-cli -e <cmd>` against that binding (quiet defaults + output truncation)
 
 Optional:
+- Diff blocks in `rp_exec` output use `delta` when installed (honoring the user's global git/delta color config), with graceful fallback otherwise
 - [Gurpartap/pi-readcache](https://github.com/Gurpartap/pi-readcache)-like caching for `rp_exec` calls that read files (`read` / `cat` / `read_file`) to save on tokens
   - returns unchanged markers and diffs on repeat reads
 

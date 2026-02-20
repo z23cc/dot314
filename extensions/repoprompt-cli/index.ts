@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+
 import type { ExtensionAPI, ExtensionContext, ToolRenderResultOptions } from "@mariozechner/pi-coding-agent";
 import { highlightCode, Theme } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
@@ -239,7 +241,7 @@ function hasPipeOutsideQuotes(script: string): boolean {
  * - Provide actionable error messages when blocked
  * - For best command parsing (AST-based), install `just-bash` >= 2; otherwise it falls back to a legacy splitter
  * - Syntax-highlight fenced code blocks in output (read, structure, etc.)
- * - Word-level diff highlighting for edit output
+ * - Delta-powered diff highlighting (with graceful fallback when delta is unavailable)
  */
 
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
@@ -954,6 +956,88 @@ function parseFencedBlocks(text: string): FencedBlock[] {
   return blocks;
 }
 
+const ANSI_ESCAPE_RE = /\x1b\[[0-9;]*m/g;
+const DELTA_TIMEOUT_MS = 5000;
+const DELTA_MAX_BUFFER = 8 * 1024 * 1024;
+const DELTA_CACHE_MAX_ENTRIES = 200;
+
+let deltaAvailable: boolean | null = null;
+const deltaDiffCache = new Map<string, string | null>();
+
+function isDeltaInstalled(): boolean {
+  if (deltaAvailable !== null) {
+    return deltaAvailable;
+  }
+
+  const check = spawnSync("delta", ["--version"], {
+    stdio: "ignore",
+    timeout: 1000,
+  });
+
+  deltaAvailable = !check.error && check.status === 0;
+  return deltaAvailable;
+}
+
+function runDelta(diffText: string): string | null {
+  const result = spawnSync("delta", ["--color-only", "--paging=never"], {
+    encoding: "utf-8",
+    input: diffText,
+    timeout: DELTA_TIMEOUT_MS,
+    maxBuffer: DELTA_MAX_BUFFER,
+  });
+
+  if (result.error || result.status !== 0) {
+    return null;
+  }
+
+  return typeof result.stdout === "string" ? result.stdout : null;
+}
+
+function stripSyntheticHeader(deltaOutput: string): string {
+  const outputLines = deltaOutput.split("\n");
+  const bodyStart = outputLines.findIndex((line) => line.replace(ANSI_ESCAPE_RE, "").startsWith("@@"));
+
+  if (bodyStart >= 0) {
+    return outputLines.slice(bodyStart + 1).join("\n");
+  }
+
+  return deltaOutput;
+}
+
+function renderDiffBlockWithDelta(code: string): string | null {
+  if (!isDeltaInstalled()) {
+    return null;
+  }
+
+  const cached = deltaDiffCache.get(code);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  let rendered = runDelta(code);
+
+  if (!rendered) {
+    const syntheticDiff = [
+      "--- a/file",
+      "+++ b/file",
+      "@@ -1,1 +1,1 @@",
+      code,
+    ].join("\n");
+
+    const syntheticRendered = runDelta(syntheticDiff);
+    if (syntheticRendered) {
+      rendered = stripSyntheticHeader(syntheticRendered);
+    }
+  }
+
+  if (deltaDiffCache.size >= DELTA_CACHE_MAX_ENTRIES) {
+    deltaDiffCache.clear();
+  }
+
+  deltaDiffCache.set(code, rendered);
+  return rendered;
+}
+
 /**
  * Compute word-level diff with inverse highlighting on changed parts
  */
@@ -1005,6 +1089,11 @@ function renderIntraLineDiff(
  * Render diff lines with syntax highlighting (red/green, word-level inverse)
  */
 function renderDiffBlock(code: string, theme: Theme): string {
+  const deltaRendered = renderDiffBlockWithDelta(code);
+  if (deltaRendered !== null) {
+    return deltaRendered;
+  }
+
   const lines = code.split("\n");
   const result: string[] = [];
 
@@ -1094,7 +1183,7 @@ function renderDiffBlock(code: string, theme: Theme): string {
 
 /**
  * Render rp_exec output with syntax highlighting for fenced code blocks.
- * - ```diff blocks get word-level diff highlighting
+ * - ```diff blocks use delta when available, with word-level fallback
  * - Other fenced blocks get syntax highlighting via Pi's highlightCode
  * - Non-fenced content is rendered dim (no markdown parsing)
  */

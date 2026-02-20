@@ -7,6 +7,8 @@ It provides two Pi tools:
 - `rp_bind` — bind to a specific RepoPrompt **window id** + **compose tab** (routing)
 - `rp_exec` — run `rp-cli -e <cmd>` against that binding
 
+Diff blocks in `rp_exec` output use `delta` when installed (honoring the user's global git/delta color config), with graceful fallback otherwise
+
 ## Optional: readcache for `rp_exec read`
 
 If enabled, `rp_exec` will apply [Gurpartap/pi-readcache](https://github.com/Gurpartap/pi-readcache)-like token savings for single-command file reads, returning:

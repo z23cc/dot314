@@ -18,7 +18,7 @@
 - ● [`repoprompt-mcp/`](repoprompt-mcp/) ([README](./repoprompt-mcp/README.md))
   - Pi-compatible, token-efficient proxy for the RepoPrompt MCP server with:
     - Window/tab binding that prevents user/agent or agent/agent clobbering: auto-detects by `cwd`, optional persistence and restoration per session, interactive binding resolution in case of multiple windows containing the required root, and manual selection via `/rp bind`
-    - Output rendering: diff highlighting, syntax highlighting (file reads and codemaps)
+    - Output rendering: diff highlighting (`delta` if installed, honoring the user's global git/delta color config, with fallback otherwise), syntax highlighting (file reads and codemaps)
     - Safety guardrails: blocks deletes unless `allowDelete: true`, optional edit confirmation gate (`confirmEdits`)
     - Optional [Gurpartap/pi-readcache](https://github.com/Gurpartap/pi-readcache)-like caching for RepoPrompt `read_file` calls (returns unchanged markers/diffs on repeat reads to save on tokens and prevent context bloat)
 
@@ -27,7 +27,7 @@
   - `rp_exec` wraps `rp-cli -e ...` with safe defaults (quiet, fail-fast, timeout, output truncation)
   - Safety features: blocks unbound usage, delete-like commands (unless `allowDelete=true`), and in-place workspace switching (unless explicitly allowed)
   - Uses just-bash AST parsing (requires `just-bash` >= 2) for command-chain inspection (better handling of quoting/escaping/chaining edge cases)
-  - Syntax-highlights fenced code blocks; diff blocks get word-level change highlighting
+  - Syntax-highlights fenced code blocks; diff blocks use `delta` when installed (honoring the user's global git/delta color config, with graceful fallback)
   - Persists the current RepoPrompt window/tab binding across session reloads
   - Edit ergonomics: detects no-op edits and fails loudly by default (set `failOnNoopEdits=false` to allow intentional no-ops)
   - Includes optional [Gurpartap/pi-readcache](https://github.com/Gurpartap/pi-readcache)-like caching for RepoPrompt `read_file` calls (returns unchanged markers/diffs on repeat reads to save on tokens and prevent context bloat)
