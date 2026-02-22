@@ -69,7 +69,7 @@ Create `~/.pi/agent/extensions/repoprompt-mcp.json`:
   "persistBinding": true,
   "confirmDeletes": true,
   "confirmEdits": false,
-  "readcacheReadFile": false
+  "readcacheReadFile": true
 }
 ```
 

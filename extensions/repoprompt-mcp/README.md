@@ -168,7 +168,7 @@ Create `~/.pi/agent/extensions/repoprompt-mcp.json`:
   "confirmDeletes": true,
   "confirmEdits": false,
 
-  "readcacheReadFile": false,
+  "readcacheReadFile": true,
   "autoSelectReadSlices": true,
   "oracleDefaultMode": "chat",
 
