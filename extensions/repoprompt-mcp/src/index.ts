@@ -7,6 +7,8 @@
 // - Safety guards for destructive operations
 // - Persistent window binding across sessions
 
+import * as path from "node:path";
+
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -23,7 +25,11 @@ import type {
   RpWindow,
   RpToolMeta,
   McpContent,
+  AutoSelectionEntryData,
+  AutoSelectionEntrySliceData,
+  AutoSelectionEntryRangeData,
 } from "./types.js";
+import { AUTO_SELECTION_ENTRY_TYPE } from "./types.js";
 import { loadConfig, getServerCommand } from "./config.js";
 import { getRpClient, resetRpClient } from "./client.js";
 import {
@@ -47,6 +53,13 @@ import { clearReplayRuntimeState, createReplayRuntimeState } from "./readcache/r
 import type { RpReadcacheMetaV1, ScopeKey } from "./readcache/types.js";
 import { getStoreStats, pruneObjectsOlderThan } from "./readcache/object-store.js";
 import { resolveReadFilePath } from "./readcache/resolve.js";
+
+import {
+  computeSliceRangeFromReadArgs,
+  countFileLines,
+  inferSelectionStatus,
+  toPosixPath,
+} from "./auto-select.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tool Parameters Schema
@@ -91,6 +104,618 @@ export default function repopromptMcp(pi: ExtensionAPI) {
     clearReplayRuntimeState(readcacheRuntimeState);
   };
 
+  let activeAutoSelectionState: AutoSelectionEntryData | null = null;
+
+  function sameOptionalTab(a?: string, b?: string): boolean {
+    return (a ?? undefined) === (b ?? undefined);
+  }
+
+  function sameBindingForAutoSelection(
+    binding: RpBinding | null,
+    state: AutoSelectionEntryData | null
+  ): boolean {
+    if (!binding || !state) {
+      return false;
+    }
+
+    if (!sameOptionalTab(binding.tab, state.tab)) {
+      return false;
+    }
+
+    if (binding.windowId === state.windowId) {
+      return true;
+    }
+
+    if (binding.workspace && state.workspace && binding.workspace === state.workspace) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function makeEmptyAutoSelectionState(binding: RpBinding): AutoSelectionEntryData {
+    return {
+      windowId: binding.windowId,
+      tab: binding.tab,
+      workspace: binding.workspace,
+      fullPaths: [],
+      slicePaths: [],
+    };
+  }
+
+  function normalizeAutoSelectionRanges(ranges: AutoSelectionEntryRangeData[]): AutoSelectionEntryRangeData[] {
+    const normalized = ranges
+      .map((range) => ({
+        start_line: Number(range.start_line),
+        end_line: Number(range.end_line),
+      }))
+      .filter((range) => Number.isFinite(range.start_line) && Number.isFinite(range.end_line))
+      .filter((range) => range.start_line > 0 && range.end_line >= range.start_line)
+      .sort((a, b) => {
+        if (a.start_line !== b.start_line) {
+          return a.start_line - b.start_line;
+        }
+        return a.end_line - b.end_line;
+      });
+
+    const merged: AutoSelectionEntryRangeData[] = [];
+    for (const range of normalized) {
+      const last = merged[merged.length - 1];
+      if (!last) {
+        merged.push(range);
+        continue;
+      }
+
+      if (range.start_line <= last.end_line + 1) {
+        last.end_line = Math.max(last.end_line, range.end_line);
+        continue;
+      }
+
+      merged.push(range);
+    }
+
+    return merged;
+  }
+
+  function normalizeAutoSelectionState(state: AutoSelectionEntryData): AutoSelectionEntryData {
+    const fullPaths = [...new Set(state.fullPaths.map((p) => toPosixPath(String(p).trim())).filter(Boolean))].sort();
+
+    const fullSet = new Set(fullPaths);
+
+    const sliceMap = new Map<string, AutoSelectionEntryRangeData[]>();
+    for (const item of state.slicePaths) {
+      const pathKey = toPosixPath(String(item.path ?? "").trim());
+      if (!pathKey || fullSet.has(pathKey)) {
+        continue;
+      }
+
+      const existing = sliceMap.get(pathKey) ?? [];
+      existing.push(...normalizeAutoSelectionRanges(item.ranges ?? []));
+      sliceMap.set(pathKey, existing);
+    }
+
+    const slicePaths: AutoSelectionEntrySliceData[] = [...sliceMap.entries()]
+      .map(([pathKey, ranges]) => ({
+        path: pathKey,
+        ranges: normalizeAutoSelectionRanges(ranges),
+      }))
+      .filter((item) => item.ranges.length > 0)
+      .sort((a, b) => a.path.localeCompare(b.path));
+
+    return {
+      windowId: state.windowId,
+      tab: state.tab,
+      workspace: typeof state.workspace === "string" ? state.workspace : undefined,
+      fullPaths,
+      slicePaths,
+    };
+  }
+
+  function autoSelectionStatesEqual(a: AutoSelectionEntryData | null, b: AutoSelectionEntryData | null): boolean {
+    if (!a && !b) {
+      return true;
+    }
+
+    if (!a || !b) {
+      return false;
+    }
+
+    const left = normalizeAutoSelectionState(a);
+    const right = normalizeAutoSelectionState(b);
+
+    return JSON.stringify(left) === JSON.stringify(right);
+  }
+
+  function parseAutoSelectionEntryData(
+    value: unknown,
+    binding: RpBinding
+  ): AutoSelectionEntryData | null {
+    if (!value || typeof value !== "object") {
+      return null;
+    }
+
+    const obj = value as Record<string, unknown>;
+
+    const windowId = typeof obj.windowId === "number" ? obj.windowId : undefined;
+    const tab = typeof obj.tab === "string" ? obj.tab : undefined;
+    const workspace = typeof obj.workspace === "string" ? obj.workspace : undefined;
+
+    const tabMatches = sameOptionalTab(tab, binding.tab);
+    const windowMatches = windowId === binding.windowId;
+    const workspaceMatches = Boolean(workspace && binding.workspace && workspace === binding.workspace);
+
+    if (!tabMatches || (!windowMatches && !workspaceMatches)) {
+      return null;
+    }
+
+    const fullPaths = Array.isArray(obj.fullPaths)
+      ? obj.fullPaths.filter((p): p is string => typeof p === "string")
+      : [];
+
+    const slicePathsRaw = Array.isArray(obj.slicePaths) ? obj.slicePaths : [];
+    const slicePaths: AutoSelectionEntrySliceData[] = slicePathsRaw
+      .map((raw) => {
+        if (!raw || typeof raw !== "object") {
+          return null;
+        }
+
+        const row = raw as Record<string, unknown>;
+        const pathValue = typeof row.path === "string" ? row.path : null;
+        const rangesRaw = Array.isArray(row.ranges) ? row.ranges : [];
+
+        if (!pathValue) {
+          return null;
+        }
+
+        const ranges: AutoSelectionEntryRangeData[] = rangesRaw
+          .map((rangeRaw) => {
+            if (!rangeRaw || typeof rangeRaw !== "object") {
+              return null;
+            }
+
+            const rangeObj = rangeRaw as Record<string, unknown>;
+            const start = typeof rangeObj.start_line === "number" ? rangeObj.start_line : NaN;
+            const end = typeof rangeObj.end_line === "number" ? rangeObj.end_line : NaN;
+
+            if (!Number.isFinite(start) || !Number.isFinite(end)) {
+              return null;
+            }
+
+            return {
+              start_line: start,
+              end_line: end,
+            };
+          })
+          .filter((range): range is AutoSelectionEntryRangeData => range !== null);
+
+        return {
+          path: pathValue,
+          ranges,
+        };
+      })
+      .filter((item): item is AutoSelectionEntrySliceData => item !== null);
+
+    return normalizeAutoSelectionState({
+      windowId: binding.windowId,
+      tab: binding.tab,
+      workspace: binding.workspace ?? workspace,
+      fullPaths,
+      slicePaths,
+    });
+  }
+
+  function getAutoSelectionStateFromBranch(
+    ctx: ExtensionContext,
+    binding: RpBinding
+  ): AutoSelectionEntryData {
+    const entries = ctx.sessionManager.getBranch();
+
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const entry = entries[i];
+      if (entry.type !== "custom" || entry.customType !== AUTO_SELECTION_ENTRY_TYPE) {
+        continue;
+      }
+
+      const parsed = parseAutoSelectionEntryData(entry.data, binding);
+      if (parsed) {
+        return parsed;
+      }
+    }
+
+    return makeEmptyAutoSelectionState(binding);
+  }
+
+  function persistAutoSelectionState(state: AutoSelectionEntryData): void {
+    const normalized = normalizeAutoSelectionState(state);
+    activeAutoSelectionState = normalized;
+    pi.appendEntry(AUTO_SELECTION_ENTRY_TYPE, normalized);
+  }
+
+  function bindingArgsForAutoSelectionState(state: AutoSelectionEntryData): Record<string, unknown> {
+    return {
+      _windowID: state.windowId,
+      ...(state.tab ? { _tabID: state.tab } : {}),
+    };
+  }
+
+  function autoSelectionManagedPaths(state: AutoSelectionEntryData): string[] {
+    const fromSlices = state.slicePaths.map((item) => item.path);
+    return [...new Set([...state.fullPaths, ...fromSlices])];
+  }
+
+  function autoSelectionSliceKey(item: AutoSelectionEntrySliceData): string {
+    return JSON.stringify(normalizeAutoSelectionRanges(item.ranges));
+  }
+
+  async function removeAutoSelectionPaths(
+    client: ReturnType<typeof getRpClient>,
+    manageSelectionToolName: string,
+    state: AutoSelectionEntryData,
+    paths: string[]
+  ): Promise<void> {
+    if (paths.length === 0) {
+      return;
+    }
+
+    await client.callTool(manageSelectionToolName, {
+      op: "remove",
+      paths,
+      ...bindingArgsForAutoSelectionState(state),
+    });
+  }
+
+  async function addAutoSelectionFullPaths(
+    client: ReturnType<typeof getRpClient>,
+    manageSelectionToolName: string,
+    state: AutoSelectionEntryData,
+    paths: string[]
+  ): Promise<void> {
+    if (paths.length === 0) {
+      return;
+    }
+
+    await client.callTool(manageSelectionToolName, {
+      op: "add",
+      mode: "full",
+      paths,
+      ...bindingArgsForAutoSelectionState(state),
+    });
+  }
+
+  async function addAutoSelectionSlices(
+    client: ReturnType<typeof getRpClient>,
+    manageSelectionToolName: string,
+    state: AutoSelectionEntryData,
+    slices: AutoSelectionEntrySliceData[]
+  ): Promise<void> {
+    if (slices.length === 0) {
+      return;
+    }
+
+    await client.callTool(manageSelectionToolName, {
+      op: "add",
+      slices,
+      ...bindingArgsForAutoSelectionState(state),
+    });
+  }
+
+  async function reconcileAutoSelectionWithinBinding(
+    client: ReturnType<typeof getRpClient>,
+    manageSelectionToolName: string,
+    currentState: AutoSelectionEntryData,
+    desiredState: AutoSelectionEntryData
+  ): Promise<void> {
+    const currentModeByPath = new Map<string, "full" | "slices">();
+    for (const p of currentState.fullPaths) {
+      currentModeByPath.set(p, "full");
+    }
+    for (const s of currentState.slicePaths) {
+      if (!currentModeByPath.has(s.path)) {
+        currentModeByPath.set(s.path, "slices");
+      }
+    }
+
+    const desiredModeByPath = new Map<string, "full" | "slices">();
+    for (const p of desiredState.fullPaths) {
+      desiredModeByPath.set(p, "full");
+    }
+    for (const s of desiredState.slicePaths) {
+      if (!desiredModeByPath.has(s.path)) {
+        desiredModeByPath.set(s.path, "slices");
+      }
+    }
+
+    const desiredSliceByPath = new Map<string, AutoSelectionEntrySliceData>();
+    for (const s of desiredState.slicePaths) {
+      desiredSliceByPath.set(s.path, s);
+    }
+
+    const currentSliceByPath = new Map<string, AutoSelectionEntrySliceData>();
+    for (const s of currentState.slicePaths) {
+      currentSliceByPath.set(s.path, s);
+    }
+
+    const removePaths = new Set<string>();
+    const addFullPaths: string[] = [];
+    const addSlices: AutoSelectionEntrySliceData[] = [];
+
+    for (const [pathKey] of currentModeByPath) {
+      if (!desiredModeByPath.has(pathKey)) {
+        removePaths.add(pathKey);
+      }
+    }
+
+    for (const [pathKey, mode] of desiredModeByPath) {
+      const currentMode = currentModeByPath.get(pathKey);
+
+      if (mode === "full") {
+        if (currentMode === "full") {
+          continue;
+        }
+
+        if (currentMode === "slices") {
+          removePaths.add(pathKey);
+        }
+
+        addFullPaths.push(pathKey);
+        continue;
+      }
+
+      const desiredSlice = desiredSliceByPath.get(pathKey);
+      if (!desiredSlice) {
+        continue;
+      }
+
+      if (currentMode === "full") {
+        removePaths.add(pathKey);
+        addSlices.push(desiredSlice);
+        continue;
+      }
+
+      if (currentMode === "slices") {
+        const currentSlice = currentSliceByPath.get(pathKey);
+        if (currentSlice && autoSelectionSliceKey(currentSlice) === autoSelectionSliceKey(desiredSlice)) {
+          continue;
+        }
+
+        removePaths.add(pathKey);
+        addSlices.push(desiredSlice);
+        continue;
+      }
+
+      addSlices.push(desiredSlice);
+    }
+
+    await removeAutoSelectionPaths(client, manageSelectionToolName, currentState, [...removePaths]);
+    await addAutoSelectionFullPaths(client, manageSelectionToolName, desiredState, addFullPaths);
+    await addAutoSelectionSlices(client, manageSelectionToolName, desiredState, addSlices);
+  }
+
+  async function reconcileAutoSelectionStates(
+    currentState: AutoSelectionEntryData | null,
+    desiredState: AutoSelectionEntryData | null
+  ): Promise<void> {
+    if (autoSelectionStatesEqual(currentState, desiredState)) {
+      return;
+    }
+
+    const client = getRpClient();
+    if (!client.isConnected) {
+      return;
+    }
+
+    const manageSelectionToolName = resolveToolName(client.tools, "manage_selection");
+    if (!manageSelectionToolName) {
+      return;
+    }
+
+    if (currentState && desiredState) {
+      const sameBinding =
+        currentState.windowId === desiredState.windowId &&
+        sameOptionalTab(currentState.tab, desiredState.tab);
+
+      if (sameBinding) {
+        await reconcileAutoSelectionWithinBinding(client, manageSelectionToolName, currentState, desiredState);
+        return;
+      }
+
+      try {
+        await removeAutoSelectionPaths(
+          client,
+          manageSelectionToolName,
+          currentState,
+          autoSelectionManagedPaths(currentState)
+        );
+      } catch {
+        // Old binding/window may no longer exist after RepoPrompt app restart
+      }
+
+      await addAutoSelectionFullPaths(client, manageSelectionToolName, desiredState, desiredState.fullPaths);
+      await addAutoSelectionSlices(client, manageSelectionToolName, desiredState, desiredState.slicePaths);
+      return;
+    }
+
+    if (currentState && !desiredState) {
+      try {
+        await removeAutoSelectionPaths(
+          client,
+          manageSelectionToolName,
+          currentState,
+          autoSelectionManagedPaths(currentState)
+        );
+      } catch {
+        // Old binding/window may no longer exist after RepoPrompt app restart
+      }
+      return;
+    }
+
+    if (!currentState && desiredState) {
+      await addAutoSelectionFullPaths(client, manageSelectionToolName, desiredState, desiredState.fullPaths);
+      await addAutoSelectionSlices(client, manageSelectionToolName, desiredState, desiredState.slicePaths);
+    }
+  }
+
+  async function ensureBindingTargetsLiveWindow(ctx: ExtensionContext): Promise<RpBinding | null> {
+    const binding = getBinding();
+    if (!binding) {
+      return null;
+    }
+
+    const client = getRpClient();
+    if (!client.isConnected) {
+      return binding;
+    }
+
+    let windows: RpWindow[];
+    try {
+      windows = await fetchWindows(pi);
+    } catch {
+      return binding;
+    }
+
+    if (windows.length === 0) {
+      return binding;
+    }
+
+    if (windows.some((w) => w.id === binding.windowId)) {
+      return binding;
+    }
+
+    if (!binding.workspace) {
+      clearBinding();
+      return null;
+    }
+
+    const workspaceMatches = windows.filter((w) => w.workspace === binding.workspace);
+
+    if (workspaceMatches.length === 1) {
+      const match = workspaceMatches[0];
+
+      try {
+        const rebound = await bindToWindow(pi, match.id, binding.tab, config);
+        return rebound;
+      } catch {
+        clearBinding();
+        return null;
+      }
+    }
+
+    clearBinding();
+
+    if (ctx.hasUI) {
+      if (workspaceMatches.length > 1) {
+        ctx.ui.notify(
+          `RepoPrompt: binding for workspace "${binding.workspace}" is ambiguous after restart. Re-bind with /rp bind.`,
+          "warning"
+        );
+      } else {
+        ctx.ui.notify(
+          `RepoPrompt: workspace "${binding.workspace}" not found after restart. Re-bind with /rp bind.`,
+          "warning"
+        );
+      }
+    }
+
+    return null;
+  }
+
+  async function syncAutoSelectionToCurrentBranch(ctx: ExtensionContext): Promise<void> {
+    if (config.autoSelectReadSlices !== true) {
+      activeAutoSelectionState = null;
+      return;
+    }
+
+    const binding = await ensureBindingTargetsLiveWindow(ctx);
+    const desiredState = binding ? getAutoSelectionStateFromBranch(ctx, binding) : null;
+
+    try {
+      await reconcileAutoSelectionStates(activeAutoSelectionState, desiredState);
+    } catch {
+      // Fail-open
+    }
+
+    activeAutoSelectionState = desiredState;
+  }
+
+  function updateAutoSelectionStateAfterFullRead(binding: RpBinding, selectionPath: string): void {
+    const normalizedPath = toPosixPath(selectionPath);
+
+    const baseState = sameBindingForAutoSelection(binding, activeAutoSelectionState)
+      ? (activeAutoSelectionState as AutoSelectionEntryData)
+      : makeEmptyAutoSelectionState(binding);
+
+    const nextState: AutoSelectionEntryData = {
+      ...baseState,
+      fullPaths: [...baseState.fullPaths, normalizedPath],
+      slicePaths: baseState.slicePaths.filter((entry) => entry.path !== normalizedPath),
+    };
+
+    const normalizedNext = normalizeAutoSelectionState(nextState);
+    if (autoSelectionStatesEqual(baseState, normalizedNext)) {
+      activeAutoSelectionState = normalizedNext;
+      return;
+    }
+
+    persistAutoSelectionState(normalizedNext);
+  }
+
+  function mergedRangesForSliceRead(
+    binding: RpBinding,
+    selectionPath: string,
+    range: AutoSelectionEntryRangeData
+  ): AutoSelectionEntryRangeData[] | null {
+    const normalizedPath = toPosixPath(selectionPath);
+
+    const baseState = sameBindingForAutoSelection(binding, activeAutoSelectionState)
+      ? (activeAutoSelectionState as AutoSelectionEntryData)
+      : makeEmptyAutoSelectionState(binding);
+
+    if (baseState.fullPaths.includes(normalizedPath)) {
+      return null;
+    }
+
+    const existing = baseState.slicePaths.find((entry) => entry.path === normalizedPath);
+    return normalizeAutoSelectionRanges([...(existing?.ranges ?? []), range]);
+  }
+
+  function updateAutoSelectionStateAfterSliceRead(
+    binding: RpBinding,
+    selectionPath: string,
+    range: AutoSelectionEntryRangeData
+  ): void {
+    const normalizedPath = toPosixPath(selectionPath);
+
+    const baseState = sameBindingForAutoSelection(binding, activeAutoSelectionState)
+      ? (activeAutoSelectionState as AutoSelectionEntryData)
+      : makeEmptyAutoSelectionState(binding);
+
+    if (baseState.fullPaths.includes(normalizedPath)) {
+      return;
+    }
+
+    const existing = baseState.slicePaths.find((entry) => entry.path === normalizedPath);
+
+    const nextSlicePaths = baseState.slicePaths.filter((entry) => entry.path !== normalizedPath);
+    nextSlicePaths.push({
+      path: normalizedPath,
+      ranges: [...(existing?.ranges ?? []), range],
+    });
+
+    const nextState: AutoSelectionEntryData = {
+      ...baseState,
+      fullPaths: [...baseState.fullPaths],
+      slicePaths: nextSlicePaths,
+    };
+
+    const normalizedNext = normalizeAutoSelectionState(nextState);
+    if (autoSelectionStatesEqual(baseState, normalizedNext)) {
+      activeAutoSelectionState = normalizedNext;
+      return;
+    }
+
+    persistAutoSelectionState(normalizedNext);
+  }
+
   // ───────────────────────────────────────────────────────────────────────────
   // Lifecycle Events
   // ───────────────────────────────────────────────────────────────────────────
@@ -100,6 +725,12 @@ export default function repopromptMcp(pi: ExtensionAPI) {
       // This extension used to set a status bar item; clear it to avoid persisting stale UI state
       ctx.ui.setStatus("rp", undefined);
     }
+
+    const restoredBinding = restoreBinding(ctx, config);
+    activeAutoSelectionState =
+      config.autoSelectReadSlices === true && restoredBinding
+        ? getAutoSelectionStateFromBranch(ctx, restoredBinding)
+        : null;
 
     // Best-effort stale cache pruning (only when readcache is enabled)
     if (config.readcacheReadFile === true) {
@@ -111,8 +742,9 @@ export default function repopromptMcp(pi: ExtensionAPI) {
     // Non-blocking initialization
     initPromise = initializeExtension(pi, ctx, config);
 
-    initPromise.then(() => {
+    initPromise.then(async () => {
       initPromise = null;
+      await syncAutoSelectionToCurrentBranch(ctx);
     }).catch((err) => {
       console.error("RepoPrompt MCP initialization failed:", err);
       initPromise = null;
@@ -136,12 +768,14 @@ export default function repopromptMcp(pi: ExtensionAPI) {
     }
 
     clearReadcacheCaches();
+    activeAutoSelectionState = null;
     await resetRpClient();
   });
 
   pi.on("session_switch", async (_event: unknown, ctx: ExtensionContext) => {
     clearReadcacheCaches();
     restoreBinding(ctx, config);
+    await syncAutoSelectionToCurrentBranch(ctx);
     if (ctx.hasUI) {
       ctx.ui.setStatus("rp", undefined);
     }
@@ -151,6 +785,7 @@ export default function repopromptMcp(pi: ExtensionAPI) {
   pi.on("session_fork", async (_event: unknown, ctx: ExtensionContext) => {
     clearReadcacheCaches();
     restoreBinding(ctx, config);
+    await syncAutoSelectionToCurrentBranch(ctx);
     if (ctx.hasUI) {
       ctx.ui.setStatus("rp", undefined);
     }
@@ -160,6 +795,7 @@ export default function repopromptMcp(pi: ExtensionAPI) {
   (pi as any).on("session_branch", async (_event: unknown, ctx: ExtensionContext) => {
     clearReadcacheCaches();
     restoreBinding(ctx, config);
+    await syncAutoSelectionToCurrentBranch(ctx);
     if (ctx.hasUI) {
       ctx.ui.setStatus("rp", undefined);
     }
@@ -168,6 +804,7 @@ export default function repopromptMcp(pi: ExtensionAPI) {
   pi.on("session_tree", async (_event: unknown, ctx: ExtensionContext) => {
     clearReadcacheCaches();
     restoreBinding(ctx, config);
+    await syncAutoSelectionToCurrentBranch(ctx);
     if (ctx.hasUI) {
       ctx.ui.setStatus("rp", undefined);
     }
@@ -178,14 +815,21 @@ export default function repopromptMcp(pi: ExtensionAPI) {
   // ───────────────────────────────────────────────────────────────────────────
 
   pi.registerCommand("rp", {
-    description: "RepoPrompt status and commands. Usage: /rp [status|windows|bind [id]|readcache-status|readcache-refresh]",
+    description: "RepoPrompt status and commands. Usage: /rp [status|windows|bind [id]|oracle|reconnect|readcache-status|readcache-refresh]",
     handler: async (args, ctx) => {
       const parts = args?.trim().split(/\s+/) ?? [];
       const subcommand = parts[0]?.toLowerCase() ?? "status";
 
-      // Allow status/readcache-status/reconnect while disconnected
-      if (subcommand !== "reconnect" && subcommand !== "status" && subcommand !== "readcache-status" && subcommand !== "readcache_status") {
-        await ensureConnected();
+      // Allow status/readcache-status/readcache-refresh/reconnect while disconnected
+      if (
+        subcommand !== "reconnect" &&
+        subcommand !== "status" &&
+        subcommand !== "readcache-status" &&
+        subcommand !== "readcache_status" &&
+        subcommand !== "readcache-refresh" &&
+        subcommand !== "readcache_refresh"
+      ) {
+        await ensureConnected(ctx);
       }
 
       switch (subcommand) {
@@ -248,6 +892,7 @@ export default function repopromptMcp(pi: ExtensionAPI) {
 
           try {
             const binding = await bindToWindow(pi, windowId, tab, config);
+            await syncAutoSelectionToCurrentBranch(ctx);
             ctx.ui.notify(
               `Bound to window ${binding.windowId}` +
               (binding.workspace ? ` (${binding.workspace})` : "") +
@@ -260,10 +905,120 @@ export default function repopromptMcp(pi: ExtensionAPI) {
           break;
         }
 
+        case "oracle": {
+          const rawArgs = args?.trim() ?? "";
+          const rest = rawArgs.replace(/^oracle\b/i, "").trim();
+
+          if (!rest) {
+            ctx.ui.notify(
+              "Usage: /rp oracle [--mode <chat|plan|edit|review>] [--name <chat name>] [--continue|--chat-id <id>] <message>",
+              "error"
+            );
+            return;
+          }
+
+          const argv = splitCommandLine(rest);
+
+          let mode: string | undefined;
+          let chatName: string | undefined;
+          let newChat = true;
+          let chatId: string | undefined;
+
+          const messageParts: string[] = [];
+
+          for (let i = 0; i < argv.length; i++) {
+            const token = argv[i];
+
+            if (token === "--mode" && i + 1 < argv.length) {
+              mode = argv[i + 1];
+              i++;
+              continue;
+            }
+
+            if (token === "--name" && i + 1 < argv.length) {
+              chatName = argv[i + 1];
+              i++;
+              continue;
+            }
+
+            if (token === "--continue") {
+              newChat = false;
+              continue;
+            }
+
+            if (token === "--chat-id" && i + 1 < argv.length) {
+              chatId = argv[i + 1];
+              newChat = false;
+              i++;
+              continue;
+            }
+
+            messageParts.push(token ?? "");
+          }
+
+          const message = messageParts.join(" ").trim();
+          if (!message) {
+            ctx.ui.notify("No message provided", "error");
+            return;
+          }
+
+          const resolvedMode = mode ?? config.oracleDefaultMode ?? "chat";
+          const allowedModes = new Set(["chat", "plan", "edit", "review"]);
+          if (!allowedModes.has(resolvedMode)) {
+            ctx.ui.notify(
+              `Invalid oracle mode "${resolvedMode}". Use chat|plan|edit|review (or set oracleDefaultMode accordingly).`,
+              "error"
+            );
+            return;
+          }
+
+          const client = getRpClient();
+          const binding = getBinding();
+
+          if (!binding) {
+            ctx.ui.notify("RepoPrompt is not bound. Use /rp bind first.", "error");
+            return;
+          }
+
+          try {
+            const chatSendToolName = resolveToolName(client.tools, "chat_send");
+            if (!chatSendToolName) {
+              ctx.ui.notify("RepoPrompt tool 'chat_send' not available", "error");
+              return;
+            }
+
+            const callArgs: Record<string, unknown> = {
+              new_chat: newChat,
+              message,
+              mode: resolvedMode,
+              ...getBindingArgs(),
+            };
+
+            if (chatName) callArgs.chat_name = chatName;
+            if (chatId) callArgs.chat_id = chatId;
+
+            const result = await client.callTool(chatSendToolName, callArgs);
+
+            const text = extractTextContent(result.content);
+
+            if (result.isError) {
+              ctx.ui.notify(text || "Oracle chat failed", "error");
+              return;
+            }
+
+            ctx.ui.notify(text || "(empty reply)", "info");
+          } catch (err) {
+            ctx.ui.notify(`Oracle chat failed: ${err instanceof Error ? err.message : err}`, "error");
+          }
+
+          break;
+        }
+
         case "reconnect":
           try {
             await resetRpClient();
             await initializeExtension(pi, ctx, config);
+            await syncAutoSelectionToCurrentBranch(ctx);
             ctx.ui.notify("RepoPrompt reconnected", "info");
           } catch (err) {
             ctx.ui.notify(`Reconnection failed: ${err instanceof Error ? err.message : err}`, "error");
@@ -277,6 +1032,7 @@ export default function repopromptMcp(pi: ExtensionAPI) {
             "  /rp windows                              - List available windows\n" +
             "  /rp bind                                 - Pick a window to bind (interactive)\n" +
             "  /rp bind <id> [tab]                      - Bind to a specific window\n" +
+            "  /rp oracle [opts] <message>              - Start/continue a RepoPrompt chat with current selection\n" +
             "  /rp reconnect                            - Reconnect to RepoPrompt\n" +
             "  /rp readcache-status                     - Show read_file cache status\n" +
             "  /rp readcache-refresh <path> [start-end] - Invalidate cached trust for next read_file",
@@ -333,7 +1089,7 @@ Mode priority: call > describe > search > windows > bind > status`,
         return executeListWindows();
       }
       if (params.bind) {
-        return executeBinding(pi, params.bind.window, params.bind.tab);
+        return executeBinding(pi, params.bind.window, params.bind.tab, _ctx as ExtensionContext | undefined);
       }
       return executeStatus();
     },
@@ -456,6 +1212,14 @@ Mode priority: call > describe > search > windows > bind > status`,
     }
 
     await client.connect(server.command, server.args, config.env);
+
+    if (ctx) {
+      try {
+        await syncAutoSelectionToCurrentBranch(ctx);
+      } catch {
+        // Fail-open
+      }
+    }
   }
 
   function parseNumber(value: unknown): number | undefined {
@@ -472,6 +1236,62 @@ Mode priority: call > describe > search > windows > bind > status`,
     }
 
     return undefined;
+  }
+
+  function splitCommandLine(input: string): string[] {
+    const args: string[] = [];
+    let current = "";
+    let quote: "\"" | "'" | null = null;
+
+    const pushCurrent = () => {
+      const trimmed = current;
+      if (trimmed.length > 0) {
+        args.push(trimmed);
+      }
+      current = "";
+    };
+
+    for (let i = 0; i < input.length; i++) {
+      const ch = input[i] ?? "";
+
+      if (quote) {
+        if (ch === quote) {
+          quote = null;
+          continue;
+        }
+
+        // Allow simple escapes inside double quotes
+        if (quote === "\"" && ch === "\\" && i + 1 < input.length) {
+          current += input[i + 1] ?? "";
+          i++;
+          continue;
+        }
+
+        current += ch;
+        continue;
+      }
+
+      if (ch === "\"" || ch === "'") {
+        quote = ch as "\"" | "'";
+        continue;
+      }
+
+      if (/\s/.test(ch)) {
+        pushCurrent();
+        continue;
+      }
+
+      if (ch === "\\" && i + 1 < input.length) {
+        current += input[i + 1] ?? "";
+        i++;
+        continue;
+      }
+
+      current += ch;
+    }
+
+    pushCurrent();
+    return args;
   }
 
   function parseSelectionSummaryFromJson(
@@ -552,6 +1372,191 @@ Mode priority: call > describe > search > windows > bind > status`,
     } catch {
       return null;
     }
+  }
+
+  async function getSelectionFilesText(): Promise<string | null> {
+    const binding = getBinding();
+    const client = getRpClient();
+
+    if (!binding || !client.isConnected) {
+      return null;
+    }
+
+    try {
+      const manageSelectionToolName = resolveToolName(client.tools, "manage_selection");
+      if (!manageSelectionToolName) {
+        return null;
+      }
+
+      const result = await client.callTool(manageSelectionToolName, {
+        op: "get",
+        view: "files",
+        ...getBindingArgs(),
+      });
+
+      if (result.isError) {
+        return null;
+      }
+
+      return extractTextContent(result.content);
+    } catch {
+      return null;
+    }
+  }
+
+  function buildSelectionPathFromResolved(
+    inputPath: string,
+    resolved: { absolutePath: string | null; repoRoot: string | null }
+  ): string {
+    if (!resolved.absolutePath || !resolved.repoRoot) {
+      return inputPath;
+    }
+
+    const rel = path.relative(resolved.repoRoot, resolved.absolutePath);
+    if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
+      return inputPath;
+    }
+
+    const rootHint = path.basename(resolved.repoRoot);
+    const relPosix = rel.split(path.sep).join("/");
+
+    return `${rootHint}/${relPosix}`;
+  }
+
+  async function autoSelectReadFileInRepoPromptSelection(
+    ctx: ExtensionContext,
+    inputPath: string,
+    startLine: number | undefined,
+    limit: number | undefined
+  ): Promise<void> {
+    if (config.autoSelectReadSlices !== true) {
+      return;
+    }
+
+    const client = getRpClient();
+    if (!client.isConnected) {
+      return;
+    }
+
+    const binding = getBinding();
+    if (!binding) {
+      return;
+    }
+
+    const manageSelectionToolName = resolveToolName(client.tools, "manage_selection");
+    if (!manageSelectionToolName) {
+      return;
+    }
+
+    const resolved = await resolveReadFilePath(inputPath, ctx.cwd, binding);
+    const selectionPath = buildSelectionPathFromResolved(inputPath, resolved);
+
+    const selectionText = await getSelectionFilesText();
+    if (selectionText === null) {
+      return;
+    }
+
+    const candidatePaths = new Set<string>();
+    candidatePaths.add(toPosixPath(selectionPath));
+    candidatePaths.add(toPosixPath(inputPath));
+
+    if (resolved.absolutePath) {
+      candidatePaths.add(toPosixPath(resolved.absolutePath));
+    }
+
+    if (resolved.absolutePath && resolved.repoRoot) {
+      const rel = path.relative(resolved.repoRoot, resolved.absolutePath);
+      if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) {
+        candidatePaths.add(toPosixPath(rel.split(path.sep).join("/")));
+      }
+    }
+
+    let selectionStatus: ReturnType<typeof inferSelectionStatus> = null;
+
+    for (const candidate of candidatePaths) {
+      const status = inferSelectionStatus(selectionText, candidate);
+      if (!status) {
+        continue;
+      }
+
+      // Strongest signal: file is currently full
+      if (status.mode === "full") {
+        selectionStatus = status;
+        break;
+      }
+
+      // Respect user manual codemap-only choices
+      if (status.mode === "codemap_only" && status.codemapManual === true) {
+        selectionStatus = status;
+        break;
+      }
+
+      if (selectionStatus === null) {
+        selectionStatus = status;
+        continue;
+      }
+
+      // Prefer slices over codemap-only if we see both signals
+      if (selectionStatus.mode === "codemap_only" && status.mode === "slices") {
+        selectionStatus = status;
+      }
+    }
+
+    if (selectionStatus?.mode === "full") {
+      return;
+    }
+
+    if (selectionStatus?.mode === "codemap_only" && selectionStatus.codemapManual === true) {
+      return;
+    }
+
+    let totalLines: number | undefined;
+
+    if (typeof startLine === "number" && startLine < 0) {
+      if (resolved.absolutePath) {
+        try {
+          totalLines = await countFileLines(resolved.absolutePath);
+        } catch {
+          totalLines = undefined;
+        }
+      }
+    }
+
+    const sliceRange = computeSliceRangeFromReadArgs(startLine, limit, totalLines);
+
+    if (sliceRange) {
+      const mergedRanges = mergedRangesForSliceRead(binding, selectionPath, sliceRange);
+      if (!mergedRanges || mergedRanges.length === 0) {
+        return;
+      }
+
+      // Use set+mode=slices with merged ranges to avoid relying on server-specific
+      // "add slices" merge semantics
+      await client.callTool(manageSelectionToolName, {
+        op: "set",
+        mode: "slices",
+        slices: [
+          {
+            path: toPosixPath(selectionPath),
+            ranges: mergedRanges,
+          },
+        ],
+        ...getBindingArgs(),
+      });
+
+      updateAutoSelectionStateAfterSliceRead(binding, selectionPath, sliceRange);
+      return;
+    }
+
+    // For reads without a representable range, fall back to selecting the full file
+    await client.callTool(manageSelectionToolName, {
+      op: "add",
+      mode: "full",
+      paths: [toPosixPath(selectionPath)],
+      ...getBindingArgs(),
+    });
+
+    updateAutoSelectionStateAfterFullRead(binding, selectionPath);
   }
 
   async function showStatus(ctx: ExtensionContext): Promise<void> {
@@ -744,8 +1749,17 @@ Mode priority: call > describe > search > windows > bind > status`,
     };
   }
 
-  async function executeBinding(extensionApi: ExtensionAPI, windowId: number, tab?: string) {
+  async function executeBinding(
+    extensionApi: ExtensionAPI,
+    windowId: number,
+    tab?: string,
+    ctx?: ExtensionContext
+  ) {
     const binding = await bindToWindow(extensionApi, windowId, tab, config);
+
+    if (ctx) {
+      await syncAutoSelectionToCurrentBranch(ctx);
+    }
 
     let text = `## Bound ✅\n`;
     text += `- **Window**: ${binding.windowId}\n`;
@@ -883,6 +1897,10 @@ Mode priority: call > describe > search > windows > bind > status`,
     try {
       let result = await client.callTool(tool.name, mergedArgs);
 
+      const pathArg = typeof userArgs.path === "string" ? (userArgs.path as string) : null;
+      const startLine = parseNumber(userArgs.start_line);
+      const limit = parseNumber(userArgs.limit);
+
       const shouldReadcache =
         config.readcacheReadFile === true &&
         params.raw !== true &&
@@ -891,14 +1909,10 @@ Mode priority: call > describe > search > windows > bind > status`,
         ctx !== undefined;
 
       if (shouldReadcache && !result.isError) {
-        const pathArg = userArgs.path as string;
-        const startLine = parseNumber(userArgs.start_line);
-        const limit = parseNumber(userArgs.limit);
-
         const cached = await readFileWithCache(
           result,
           {
-            path: pathArg,
+            path: pathArg as string,
             ...(startLine !== undefined ? { start_line: startLine } : {}),
             ...(limit !== undefined ? { limit } : {}),
             ...(bypassCache ? { bypass_cache: true } : {}),
@@ -910,6 +1924,20 @@ Mode priority: call > describe > search > windows > bind > status`,
 
         result = cached.toolResult;
         rpReadcache = cached.meta;
+      }
+
+      const shouldAutoSelectRead =
+        config.autoSelectReadSlices === true &&
+        normalizedTool === "read_file" &&
+        pathArg !== null &&
+        ctx !== undefined;
+
+      if (shouldAutoSelectRead && !result.isError) {
+        try {
+          await autoSelectReadFileInRepoPromptSelection(ctx, pathArg, startLine, limit);
+        } catch {
+          // Fail-open
+        }
       }
 
       // Transform content to text

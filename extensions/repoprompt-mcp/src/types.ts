@@ -112,6 +112,13 @@ export interface RpConfig {
 
   // Optional read_file caching (pi-readcache-like behavior)
   readcacheReadFile?: boolean;     // When true, wrap read_file with hash/diff/unchanged caching (default: false)
+
+  // Optional context UX: automatically update RepoPrompt selection based on read_file calls
+  // (tracks read slices/full files so chat_send/"Oracle" has context without manual selection)
+  autoSelectReadSlices?: boolean;  // When true, read_file calls add slices/full selection (default: true)
+
+  // /rp oracle behavior
+  oracleDefaultMode?: "chat" | "plan" | "edit" | "review"; // Default mode when /rp oracle omits --mode (default: "chat")
 }
 
 
@@ -156,9 +163,28 @@ export interface RpExtensionState {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const BINDING_ENTRY_TYPE = "repoprompt-mcp-binding";
+export const AUTO_SELECTION_ENTRY_TYPE = "repoprompt-mcp-auto-selection";
 
 export interface BindingEntryData {
   windowId: number;
   tab?: string;
   workspace?: string;
+}
+
+export interface AutoSelectionEntryRangeData {
+  start_line: number;
+  end_line: number;
+}
+
+export interface AutoSelectionEntrySliceData {
+  path: string;
+  ranges: AutoSelectionEntryRangeData[];
+}
+
+export interface AutoSelectionEntryData {
+  windowId: number;
+  tab?: string;
+  workspace?: string;
+  fullPaths: string[];
+  slicePaths: AutoSelectionEntrySliceData[];
 }

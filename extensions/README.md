@@ -18,9 +18,11 @@
 - ● [`repoprompt-mcp/`](repoprompt-mcp/) ([README](./repoprompt-mcp/README.md))
   - Pi-compatible, token-efficient proxy for the RepoPrompt MCP server with:
     - Window/tab binding that prevents user/agent or agent/agent clobbering: auto-detects by `cwd`, optional persistence and restoration per session, interactive binding resolution in case of multiple windows containing the required root, and manual selection via `/rp bind`
+      - Bindings are also branch-safe across navigation of the session DAG via `/tree` and across `/fork`ed sessions
     - Output rendering: diff highlighting (`delta` if installed, honoring the user's global git/delta color config, with fallback otherwise), syntax highlighting (file reads and codemaps)
     - Safety guardrails: blocks deletes unless `allowDelete: true`, optional edit confirmation gate (`confirmEdits`)
     - Optional [Gurpartap/pi-readcache](https://github.com/Gurpartap/pi-readcache)-like caching for RepoPrompt `read_file` calls (returns unchanged markers/diffs on repeat reads to save on tokens and prevent context bloat)
+    - Optional auto-selection (in the RP app, e.g. for use in RP Chat) of slices/files the agent has read; these selections are also branch-safe across `/tree` navigation and `/fork`ed session
 
 - ● [`repoprompt-cli/`](repoprompt-cli/)
   - [RepoPrompt](https://repoprompt.com/docs) bridge for Pi: `rp_bind` + `rp_exec`
@@ -28,7 +30,7 @@
   - Safety features: blocks unbound usage, delete-like commands (unless `allowDelete=true`), and in-place workspace switching (unless explicitly allowed)
   - Uses just-bash AST parsing (requires `just-bash` >= 2) for command-chain inspection (better handling of quoting/escaping/chaining edge cases)
   - Syntax-highlights fenced code blocks; diff blocks use `delta` when installed (honoring the user's global git/delta color config, with graceful fallback)
-  - Persists the current RepoPrompt window/tab binding across session reloads
+  - Persists the current RepoPrompt window/tab binding across session; bindings are also branch-safe across navigation of the session DAG via `/tree` and across `/fork`ed sessions
   - Edit ergonomics: detects no-op edits and fails loudly by default (set `failOnNoopEdits=false` to allow intentional no-ops)
   - Includes optional [Gurpartap/pi-readcache](https://github.com/Gurpartap/pi-readcache)-like caching for RepoPrompt `read_file` calls (returns unchanged markers/diffs on repeat reads to save on tokens and prevent context bloat)
   - Used by [Pi × RP-CLI AGENTS.md guidance](../AGENTS-rp-cli-prefix.md), [RP-CLI prompts](../skills/repoprompt-tool-guidance-refresh/rp-cli-prompts/), and this [skill](../skills/repoprompt-tool-guidance-refresh/) for keeping it all up-to-date with new RepoPrompt versions

@@ -3,10 +3,11 @@
 A token-efficient RepoPrompt MCP integration for Pi.
 
 Exposes a single `rp` tool (RepoPrompt MCP proxy) plus `/rp …` commands, with:
-- window/tab binding (auto-detect by `cwd`, optional persistence)
+- window/tab binding (auto-detect by `cwd`, optional persistence); these are branch-safe across navigation of the session DAG via `/tree` and across `/fork`ed sessions
 - output rendering (syntax + diff highlighting; uses `delta` when installed, honoring the user's global git/delta color config, with graceful fallback)
 - safety guardrails (deletes blocked unless explicitly allowed; optional edit confirmation)
 - optional [Gurpartap/pi-readcache](https://github.com/Gurpartap/pi-readcache)-like caching for RepoPrompt `read_file` results (unchanged markers + diffs) to save on tokens
+- optional auto-selection in the RP UI (e.g. for use in RP Chat) of slices/files the agent has read; these selections are also branch-safe across `/tree` navigation and `/fork`ed session
 
 ## Install
 

@@ -6,5 +6,7 @@
   "confirmDeletes": true,
   "confirmEdits": false,
   "collapsedMaxLines": 15,
-  "readcacheReadFile": true
+  "readcacheReadFile": true,
+  "autoSelectReadSlices": true,
+  "oracleDefaultMode": "chat"
 }

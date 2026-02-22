@@ -17,6 +17,12 @@ const DEFAULT_CONFIG: RpConfig = {
 
   // Off by default: preserves RepoPrompt's default read_file behavior unless explicitly enabled
   readcacheReadFile: false,
+
+  // On by default: mirrors RepoPrompt Agent Mode behavior (reads automatically curate selection)
+  autoSelectReadSlices: true,
+
+  // /rp oracle uses this mode when --mode is not provided
+  oracleDefaultMode: "chat",
 };
 
 // Common locations for MCP config files

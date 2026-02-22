@@ -114,6 +114,7 @@ If RepoPrompt renames/removes these tools or changes their required parameters/o
 </p>
 
 - `/rp bind <id> [tab]` — bind directly
+- `/rp oracle [--mode <chat|plan|edit|review>] [--name <chat name>] [--continue|--chat-id <id>] <message>` — ask RepoPrompt chat with current selection context.  If `--mode` not specified, uses `oracleDefaultMode` config.
 - `/rp reconnect` — reconnect to RepoPrompt
 
 ### Tool: `rp`
@@ -168,6 +169,8 @@ Create `~/.pi/agent/extensions/repoprompt-mcp.json`:
   "confirmEdits": false,
 
   "readcacheReadFile": false,
+  "autoSelectReadSlices": true,
+  "oracleDefaultMode": "chat",
 
   "collapsedMaxLines": 15,
   "suppressHostDisconnectedLog": true
@@ -186,6 +189,8 @@ Options:
 | `confirmDeletes` | `true` | Block delete operations unless `allowDelete: true` |
 | `confirmEdits` | `false` | Block edit-like operations unless `confirmEdits: true` |
 | `readcacheReadFile` | `false` | Enable [pi-readcache](https://github.com/Gurpartap/pi-readcache)-like caching for RepoPrompt `read_file` calls (returns unchanged markers/diffs on repeat reads to save on tokens and prevent context bloat) |
+| `autoSelectReadSlices` | `true` | Automatically track `read_file` calls by adding slices/full-file selection via `manage_selection`, so `chat_send` (or a manually created chat in the RP app) uses everything the agent has read as context; these file/slice selections are **branch-safe** across `/tree` rewinds and `/fork`ed session branches via extension-owned snapshot replay |
+| `oracleDefaultMode` | `"chat"` | Default mode for `/rp oracle` when `--mode` is omitted (`chat`, `plan`, `edit`, or `review`) |
 | `collapsedMaxLines` | `15` | Lines shown in collapsed view |
 | `suppressHostDisconnectedLog` | `true` | Filter noisy stderr from macOS `repoprompt-mcp` (disconnect/retry bootstrap logs) |
 
