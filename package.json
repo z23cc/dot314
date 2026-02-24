@@ -26,6 +26,7 @@
       "./extensions/ephemeral-mode.ts",
       "./extensions/fork-from-first.ts",
       "./extensions/handover/index.ts",
+      "./extensions/iterm-tab-color.ts",
       "./extensions/agentic-compaction/index.ts",
       "./extensions/protect-paths.ts",
       "./extensions/md.ts",

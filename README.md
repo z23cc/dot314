@@ -112,6 +112,7 @@ This repo contains more resources than the package exports. When installed as a 
 | ● | `ephemeral-mode.ts` | Delete session on exit |
 | ● | `fork-from-first.ts` | Quickly fork session from first message |
 | ◐ | `handover/` | Generate handover draft -> fork-from-first -> prefill editor (default to conversation-only fork if coinstalled with `rewind/`) |
+| ● | `iterm-tab-color.ts` | Two-state tab coloring (running vs. not-running) for iTerm2 |
 | ● | `md.ts` | Export session or last N turns to Markdown |
 | ● | `model-aware-compaction/` | Per-model compaction thresholds |
 | ● | `model-sysprompt-appendix/` | Per-model system prompt additions |
@@ -182,6 +183,7 @@ See [extensions/README.md](extensions/README.md) for full descriptions.
 | ◐ | `handover/` |
 | ○ | `inline-bash.ts` |
 | ○ | `interactive-shell.ts` |
+| ● | `iterm-tab-color.ts` |
 | ○ | `mac-system-theme.ts` |
 | ● | `md.ts` |
 | ● | `model-aware-compaction/` |

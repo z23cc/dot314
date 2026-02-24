@@ -121,6 +121,9 @@
   - Removes duplicate AGENTS.md content from the system prompt when the same file is loaded via different paths (e.g., symlinks)
   - **Why it's here:** This repo is symlinked to `~/.pi/agent/` (as suggested in the root README). Pi loads AGENTS.md from both `agentDir` and the cwd walk, but since they resolve to the same file, the content appears twice. This extension deduplicates by resolving real paths.
 
+- ● [`iterm-tab-color.ts`](iterm-tab-color.ts)
+  - Uses iTerm2 OSC tab-color sequences to color each Pi tab's background per two configurable states (`runningColor` and `notRunningColor`, for when the agent is running or not running respectively); gracefully no-ops if another terminal emulator is used
+
 - ◐ [`editor-enhancements/`](editor-enhancements/)
   - Composite editor extension that makes multiple `setEditorComponent()`-based UX tweaks simultaneously compatible
   - Includes a merged, single-editor implementation of:
