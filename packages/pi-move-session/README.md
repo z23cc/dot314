@@ -37,9 +37,10 @@ Supports `~` expansion (e.g. `/move-session ~/code/my-project`).
 ## How it works
 
 1. Forks the current session JSONL into the target cwd's session bucket via `SessionManager.forkFrom()`
-2. Tears down the parent's terminal state (Kitty keyboard protocol, bracketed paste, cursor visibility)
-3. Spawns a new `pi --session <fork>` process in the target directory with inherited stdio
-4. Trashes the old session file (via `trash` if available; never permanently deletes)
-5. Destroys the parent's stdin so it can't steal keypresses from the child
+2. Clears the fork header's `parentSession` pointer
+3. Tears down the parent's terminal state (Kitty keyboard protocol, bracketed paste, cursor visibility)
+4. Spawns a new `pi --session <fork>` process in the target directory with inherited stdio
+5. Trashes the old session file (via `trash` if available; never permanently deletes)
+6. Destroys the parent's stdin so it can't steal keypresses from the child
 
 The parent process stays alive as an inert wrapper that forwards the child's exit code.

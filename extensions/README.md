@@ -66,7 +66,7 @@
 
 - ● [`move-session.ts`](move-session.ts)
   - `/session-move <targetCwd>` moves the *current session* to a different working directory, intended for when you started pi in one folder but come to find that you need it in another after building up valuable context
-  - Forks the session JSONL into the target cwd bucket (`SessionManager.forkFrom(...)`), then relaunches `pi --session <fork>` with `cwd=<targetCwd>` so the footer + built-in tools resolve relative paths against the new directory
+  - Forks the session JSONL into the target cwd bucket (`SessionManager.forkFrom(...)`), clears the fork header's `parentSession` pointer, then relaunches `pi --session <fork>` with `cwd=<targetCwd>` so the footer + built-in tools resolve relative paths against the new directory
   - Uses `trash` to delete the old session file (best-effort); if `trash` isn't available, it leaves the old file in place
   - Supports `~` expansion (e.g. `/session-move ~/code/my-project`)
 
